@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Pencil,
   List,
@@ -23,6 +24,7 @@ import {
 } from "../api/keywords";
 
 export default function KeywordsPage() {
+  const navigate = useNavigate();
   const [manualText, setManualText] = useState("");
   const [excelKeywords, setExcelKeywords] = useState<string[]>([]);
   const [removed, setRemoved] = useState<Set<string>>(new Set());
@@ -110,7 +112,7 @@ export default function KeywordsPage() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <TopNav />
+      <TopNav active={1} />
 
       <main className="mx-auto max-w-7xl px-8 py-10">
         <h1 className="text-3xl font-bold text-slate-900">Define Scraper Keywords</h1>
@@ -296,6 +298,7 @@ export default function KeywordsPage() {
           </div>
           <button
             disabled={keywords.length === 0}
+            onClick={() => navigate("/collections/new", { state: { keywords } })}
             className="flex items-center gap-2 rounded-lg bg-emerald-600 px-6 py-3 font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
           >
             Continue to Configuration
