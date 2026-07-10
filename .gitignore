@@ -37,3 +37,5 @@ Thumbs.db
 # --- Misc ---
 .coverage
 htmlcov/
+
+CLAUDE.md

@@ -22,7 +22,11 @@ import {
   type ImportReport,
 } from "../api/keywords";
 
-export default function KeywordsPage() {
+interface Props {
+  onNavigateHistory: () => void;
+}
+
+export default function KeywordsPage({ onNavigateHistory }: Props) {
   const [manualText, setManualText] = useState("");
   const [excelKeywords, setExcelKeywords] = useState<string[]>([]);
   const [removed, setRemoved] = useState<Set<string>>(new Set());
@@ -110,7 +114,10 @@ export default function KeywordsPage() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <TopNav />
+      <TopNav
+        current="keywords"
+        onNavigate={(page) => page === "history" && onNavigateHistory()}
+      />
 
       <main className="mx-auto max-w-7xl px-8 py-10">
         <h1 className="text-3xl font-bold text-slate-900">Define Scraper Keywords</h1>

@@ -1,13 +1,20 @@
 import { Zap, Type, Settings, Activity, Grid, Clock } from "lucide-react";
 
-const steps = [
-  { label: "1. Keywords", icon: Type, active: true },
-  { label: "2. Configure", icon: Settings, active: false },
-  { label: "3. Collect", icon: Activity, active: false },
-  { label: "4. Results", icon: Grid, active: false },
+export type Page = "keywords" | "history";
+
+const steps: { label: string; icon: typeof Type; page: Page }[] = [
+  { label: "1. Keywords", icon: Type, page: "keywords" },
+  { label: "2. Configure", icon: Settings, page: "keywords" },
+  { label: "3. Collect", icon: Activity, page: "keywords" },
+  { label: "4. Results", icon: Grid, page: "keywords" },
 ];
 
-export default function TopNav() {
+interface Props {
+  current: Page;
+  onNavigate: (page: Page) => void;
+}
+
+export default function TopNav({ current, onNavigate }: Props) {
   return (
     <header className="border-b border-slate-200 bg-white">
       <div className="flex items-center justify-between px-8 py-4">
@@ -24,28 +31,38 @@ export default function TopNav() {
         </div>
 
         <nav className="flex items-center gap-2">
-          {steps.map((step, i) => (
-            <div key={step.label} className="flex items-center gap-2">
-              <div
-                className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium ${
-                  step.active
-                    ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
-                    : "text-slate-400"
-                }`}
-              >
-                <step.icon className="h-4 w-4" />
-                {step.label}
+          {steps.map((step, i) => {
+            const active = current === "keywords" && step.label.startsWith("1.");
+            return (
+              <div key={step.label} className="flex items-center gap-2">
+                <div
+                  className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium ${
+                    active
+                      ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
+                      : "text-slate-400"
+                  }`}
+                >
+                  <step.icon className="h-4 w-4" />
+                  {step.label}
+                </div>
+                {i < steps.length - 1 && <div className="h-px w-6 bg-slate-200" />}
               </div>
-              {i < steps.length - 1 && <div className="h-px w-6 bg-slate-200" />}
-            </div>
-          ))}
+            );
+          })}
         </nav>
 
         <div className="flex items-center gap-4 text-sm">
-          <div className="flex items-center gap-1.5 text-slate-500">
+          <button
+            onClick={() => onNavigate("history")}
+            className={`flex items-center gap-1.5 ${
+              current === "history"
+                ? "font-medium text-emerald-600"
+                : "text-slate-500 hover:text-emerald-600"
+            }`}
+          >
             <Clock className="h-4 w-4" />
             History
-          </div>
+          </button>
           <div className="h-5 w-px bg-slate-200" />
           <div className="flex items-center gap-2">
             <div className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-600 text-xs font-bold text-white">
