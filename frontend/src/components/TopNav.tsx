@@ -1,13 +1,17 @@
 import { Zap, Type, Settings, Activity, Grid, Clock } from "lucide-react";
 
 const steps = [
-  { label: "1. Keywords", icon: Type, active: true },
-  { label: "2. Configure", icon: Settings, active: false },
-  { label: "3. Collect", icon: Activity, active: false },
-  { label: "4. Results", icon: Grid, active: false },
+  { label: "1. Keywords", icon: Type },
+  { label: "2. Configure", icon: Settings },
+  { label: "3. Collect", icon: Activity },
+  { label: "4. Results", icon: Grid },
 ];
 
-export default function TopNav() {
+interface Props {
+  active?: number;
+}
+
+export default function TopNav({ active = 1 }: Props) {
   return (
     <header className="border-b border-slate-200 bg-white">
       <div className="flex items-center justify-between px-8 py-4">
@@ -28,7 +32,7 @@ export default function TopNav() {
             <div key={step.label} className="flex items-center gap-2">
               <div
                 className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium ${
-                  step.active
+                  active === i + 1
                     ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
                     : "text-slate-400"
                 }`}
