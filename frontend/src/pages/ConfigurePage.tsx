@@ -139,7 +139,7 @@ export default function ConfigurePage() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <TopNav active={2} />
+      <TopNav />
 
       <main className="mx-auto max-w-7xl px-8 py-10">
         <h1 className="text-3xl font-bold text-slate-900">Configure Collection Parameters</h1>
