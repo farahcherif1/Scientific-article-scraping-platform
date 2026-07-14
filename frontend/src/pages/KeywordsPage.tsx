@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Pencil,
   List,
@@ -22,11 +23,8 @@ import {
   type ImportReport,
 } from "../api/keywords";
 
-interface Props {
-  onNavigateHistory: () => void;
-}
-
-export default function KeywordsPage({ onNavigateHistory }: Props) {
+export default function KeywordsPage() {
+  const navigate = useNavigate();
   const [manualText, setManualText] = useState("");
   const [excelKeywords, setExcelKeywords] = useState<string[]>([]);
   const [removed, setRemoved] = useState<Set<string>>(new Set());
@@ -114,10 +112,7 @@ export default function KeywordsPage({ onNavigateHistory }: Props) {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <TopNav
-        current="keywords"
-        onNavigate={(page) => page === "history" && onNavigateHistory()}
-      />
+      <TopNav />
 
       <main className="mx-auto max-w-7xl px-8 py-10">
         <h1 className="text-3xl font-bold text-slate-900">Define Scraper Keywords</h1>
@@ -128,9 +123,7 @@ export default function KeywordsPage({ onNavigateHistory }: Props) {
         </p>
 
         <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
-          {/* Left column */}
           <div className="flex flex-col gap-6">
-            {/* Manual entry */}
             <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -153,7 +146,6 @@ export default function KeywordsPage({ onNavigateHistory }: Props) {
               </div>
             </div>
 
-            {/* Import from Excel */}
             <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -206,13 +198,10 @@ export default function KeywordsPage({ onNavigateHistory }: Props) {
                     }}
                   />
                 </div>
-                {uploadError && (
-                  <p className="mt-3 text-sm text-rose-600">{uploadError}</p>
-                )}
+                {uploadError && <p className="mt-3 text-sm text-rose-600">{uploadError}</p>}
               </div>
             </div>
 
-            {/* Import report */}
             {importReport && (
               <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
                 <div className="flex items-center gap-3">
@@ -244,7 +233,6 @@ export default function KeywordsPage({ onNavigateHistory }: Props) {
             )}
           </div>
 
-          {/* Right column: live preview */}
           <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -303,6 +291,7 @@ export default function KeywordsPage({ onNavigateHistory }: Props) {
           </div>
           <button
             disabled={keywords.length === 0}
+            onClick={() => navigate("/collections/new", { state: { keywords } })}
             className="flex items-center gap-2 rounded-lg bg-emerald-600 px-6 py-3 font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
           >
             Continue to Configuration

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { AlertTriangle, Clock, History as HistoryIcon, RefreshCw } from "lucide-react";
 import TopNav from "../components/TopNav";
 import {
@@ -6,11 +7,6 @@ import {
   type CollectionStatus,
   type CollectionSummary,
 } from "../api/history";
-
-interface Props {
-  onStartNewCollection: () => void;
-  onOpenCollection: (id: string) => void;
-}
 
 const STATUS_STYLES: Record<CollectionStatus, { label: string; className: string }> = {
   completed: {
@@ -39,7 +35,8 @@ function formatTimestamp(iso: string) {
   };
 }
 
-export default function HistoryPage({ onStartNewCollection, onOpenCollection }: Props) {
+export default function HistoryPage() {
+  const navigate = useNavigate();
   const [collections, setCollections] = useState<CollectionSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -63,7 +60,7 @@ export default function HistoryPage({ onStartNewCollection, onOpenCollection }: 
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <TopNav current="history" onNavigate={(page) => page === "keywords" && onStartNewCollection()} />
+      <TopNav />
 
       <main className="mx-auto max-w-7xl px-8 py-10">
         <div className="flex items-center justify-between">
@@ -75,7 +72,7 @@ export default function HistoryPage({ onStartNewCollection, onOpenCollection }: 
             </p>
           </div>
           <button
-            onClick={onStartNewCollection}
+            onClick={() => navigate("/keywords")}
             className="rounded-lg bg-emerald-600 px-5 py-3 font-medium text-white hover:bg-emerald-700"
           >
             Start New Collection
@@ -125,7 +122,7 @@ export default function HistoryPage({ onStartNewCollection, onOpenCollection }: 
                     return (
                       <tr
                         key={c.id}
-                        onClick={() => onOpenCollection(c.id)}
+                        onClick={() => navigate(`/collections/${c.id}`)}
                         className={`cursor-pointer border-t border-slate-100 hover:bg-emerald-50/40 ${
                           i % 2 === 1 ? "bg-slate-50/60" : "bg-white"
                         }`}

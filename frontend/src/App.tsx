@@ -1,22 +1,19 @@
-import { useState } from "react";
+import { Routes, Route, Navigate } from "react-router-dom";
 import KeywordsPage from "./pages/KeywordsPage";
+import ConfigurePage from "./pages/ConfigurePage";
 import HistoryPage from "./pages/HistoryPage";
-
-type Page = "keywords" | "history";
+import ResultsPlaceholderPage from "./pages/ResultsPlaceholderPage";
 
 function App() {
-  const [page, setPage] = useState<Page>("keywords");
-
-  if (page === "history") {
-    return (
-      <HistoryPage
-        onStartNewCollection={() => setPage("keywords")}
-        onOpenCollection={() => setPage("keywords")}
-      />
-    );
-  }
-
-  return <KeywordsPage onNavigateHistory={() => setPage("history")} />;
+  return (
+    <Routes>
+      <Route path="/" element={<Navigate to="/keywords" replace />} />
+      <Route path="/keywords" element={<KeywordsPage />} />
+      <Route path="/collections/new" element={<ConfigurePage />} />
+      <Route path="/history" element={<HistoryPage />} />
+      <Route path="/collections/:id" element={<ResultsPlaceholderPage />} />
+    </Routes>
+  );
 }
 
 export default App;
