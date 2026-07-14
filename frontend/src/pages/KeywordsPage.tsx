@@ -112,7 +112,7 @@ export default function KeywordsPage() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <TopNav active={1} />
+      <TopNav />
 
       <main className="mx-auto max-w-7xl px-8 py-10">
         <h1 className="text-3xl font-bold text-slate-900">Define Scraper Keywords</h1>
@@ -123,9 +123,7 @@ export default function KeywordsPage() {
         </p>
 
         <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
-          {/* Left column */}
           <div className="flex flex-col gap-6">
-            {/* Manual entry */}
             <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -148,7 +146,6 @@ export default function KeywordsPage() {
               </div>
             </div>
 
-            {/* Import from Excel */}
             <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -201,13 +198,10 @@ export default function KeywordsPage() {
                     }}
                   />
                 </div>
-                {uploadError && (
-                  <p className="mt-3 text-sm text-rose-600">{uploadError}</p>
-                )}
+                {uploadError && <p className="mt-3 text-sm text-rose-600">{uploadError}</p>}
               </div>
             </div>
 
-            {/* Import report */}
             {importReport && (
               <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
                 <div className="flex items-center gap-3">
@@ -239,7 +233,6 @@ export default function KeywordsPage() {
             )}
           </div>
 
-          {/* Right column: live preview */}
           <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">

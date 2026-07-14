@@ -1,17 +1,28 @@
 import { Zap, Type, Settings, Activity, Grid, Clock } from "lucide-react";
+import { useNavigate, useLocation } from "react-router-dom";
 
-const steps = [
-  { label: "1. Keywords", icon: Type },
-  { label: "2. Configure", icon: Settings },
-  { label: "3. Collect", icon: Activity },
-  { label: "4. Results", icon: Grid },
-];
-
-interface Props {
-  active?: number;
+interface StepDef {
+  label: string;
+  icon: typeof Type;
+  path: string | null; // null = not built yet
 }
 
-export default function TopNav({ active = 1 }: Props) {
+const steps: StepDef[] = [
+  { label: "1. Keywords", icon: Type, path: "/keywords" },
+  { label: "2. Configure", icon: Settings, path: "/collections/new" },
+  { label: "3. Collect", icon: Activity, path: null },
+  { label: "4. Results", icon: Grid, path: null },
+];
+
+function isActive(pathname: string, path: string | null): boolean {
+  if (!path) return false;
+  return pathname === path || pathname.startsWith(`${path}/`);
+}
+
+export default function TopNav() {
+  const navigate = useNavigate();
+  const location = useLocation();
+
   return (
     <header className="border-b border-slate-200 bg-white">
       <div className="flex items-center justify-between px-8 py-4">
@@ -28,28 +39,44 @@ export default function TopNav({ active = 1 }: Props) {
         </div>
 
         <nav className="flex items-center gap-2">
-          {steps.map((step, i) => (
-            <div key={step.label} className="flex items-center gap-2">
-              <div
-                className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium ${
-                  active === i + 1
-                    ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
-                    : "text-slate-400"
-                }`}
-              >
-                <step.icon className="h-4 w-4" />
-                {step.label}
+          {steps.map((step, i) => {
+            const active = isActive(location.pathname, step.path);
+            const clickable = Boolean(step.path);
+            return (
+              <div key={step.label} className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={!clickable}
+                  onClick={() => step.path && navigate(step.path)}
+                  className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+                    active
+                      ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
+                      : clickable
+                        ? "text-slate-400 hover:text-slate-600"
+                        : "cursor-not-allowed text-slate-300"
+                  }`}
+                >
+                  <step.icon className="h-4 w-4" />
+                  {step.label}
+                </button>
+                {i < steps.length - 1 && <div className="h-px w-6 bg-slate-200" />}
               </div>
-              {i < steps.length - 1 && <div className="h-px w-6 bg-slate-200" />}
-            </div>
-          ))}
+            );
+          })}
         </nav>
 
         <div className="flex items-center gap-4 text-sm">
-          <div className="flex items-center gap-1.5 text-slate-500">
+          <button
+            onClick={() => navigate("/history")}
+            className={`flex items-center gap-1.5 ${
+              location.pathname.startsWith("/history")
+                ? "font-medium text-emerald-700"
+                : "text-slate-500 hover:text-slate-700"
+            }`}
+          >
             <Clock className="h-4 w-4" />
             History
-          </div>
+          </button>
           <div className="h-5 w-px bg-slate-200" />
           <div className="flex items-center gap-2">
             <div className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-600 text-xs font-bold text-white">
