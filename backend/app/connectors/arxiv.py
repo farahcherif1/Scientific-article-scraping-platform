@@ -1,44 +1,52 @@
-import asyncio
-import time
+"""
+arXiv connector (US-03.1) — follows the same shared-infra structure as
+OpenAlexConnector (US-03.2): the resilient HTTP layer (US-03.6, retries on
+5xx/429/network errors with exponential backoff), the shared per-source rate
+limiter, and the in-memory response cache.
+
+Docs: https://arxiv.org/help/api/user-manual
+Rate limit per arXiv's own guidance: ~1 request every 3 seconds
+(settings.rate_limit_arxiv_interval_s / ARXIV_RATE_LIMITER).
+"""
+from __future__ import annotations
+
 from datetime import datetime, timezone
+from typing import Optional
 from xml.etree import ElementTree
 
 import httpx
 
 from app.connectors.base import BaseConnector
-from app.domain.entities import RawArticle
-from app.domain.exceptions import ConnectorError
+from app.domain.entities import ConnectorError, RawArticle, SourceEnum
+from app.infra.cache import get_cached, set_cached
+from app.infra.retries import call_with_retry
+from app.orchestrator.rate_limiter import ARXIV_RATE_LIMITER
 
 ATOM_NS = "{http://www.w3.org/2005/Atom}"
 ARXIV_NS = "{http://arxiv.org/schemas/atom}"
 
 ARXIV_API_URL = "https://export.arxiv.org/api/query"
-MIN_SECONDS_BETWEEN_REQUESTS = 3.0
 
 
 class ArxivConnector(BaseConnector):
-    """
-    arXiv connector (M04 - Must Have).
-    Docs: https://arxiv.org/help/api/user-manual
-    Rate limit per arXiv's own guidance: ~1 request every 3 seconds.
-    """
-
     name = "arxiv"
 
-    def __init__(self, http_client: httpx.AsyncClient | None = None, timeout: float = 30.0):
-        self._client = http_client
-        self._timeout = timeout
-        self._last_request_at: float | None = None
-        self._rate_limit_lock = asyncio.Lock()
-
-    async def _respect_rate_limit(self) -> None:
-        async with self._rate_limit_lock:
-            if self._last_request_at is not None:
-                elapsed = time.monotonic() - self._last_request_at
-                wait = MIN_SECONDS_BETWEEN_REQUESTS - elapsed
-                if wait > 0:
-                    await asyncio.sleep(wait)
-            self._last_request_at = time.monotonic()
+    def __init__(
+        self,
+        *,
+        http_client: Optional[httpx.AsyncClient] = None,
+        rate_limiter=ARXIV_RATE_LIMITER,
+        connect_timeout_s: float = 10.0,
+        read_timeout_s: float = 30.0,
+    ):
+        self._client = http_client or httpx.AsyncClient(
+            timeout=httpx.Timeout(
+                connect=connect_timeout_s, read=read_timeout_s,
+                write=read_timeout_s, pool=read_timeout_s,
+            ),
+            follow_redirects=True,
+        )
+        self._rate_limiter = rate_limiter
 
     async def search(
         self,
@@ -47,11 +55,26 @@ class ArxivConnector(BaseConnector):
         filters: dict | None = None,
     ) -> list[RawArticle]:
         if not keyword or not keyword.strip():
-            raise ConnectorError(self.name, "Keyword must not be empty.")
+            raise ConnectorError(
+                source=SourceEnum.ARXIV,
+                endpoint=ARXIV_API_URL,
+                keyword=keyword,
+                error_class="InvalidInput",
+                message="Keyword must not be empty.",
+            )
         if max_results < 1:
-            raise ConnectorError(self.name, "max_results must be at least 1.")
+            raise ConnectorError(
+                source=SourceEnum.ARXIV,
+                endpoint=ARXIV_API_URL,
+                keyword=keyword,
+                error_class="InvalidInput",
+                message="max_results must be at least 1.",
+            )
 
-        await self._respect_rate_limit()
+        cache_params = {"max_results": max_results}
+        cached = get_cached(self.name, keyword, cache_params)
+        if cached is not None:
+            return [self._map_to_raw_article(record, keyword) for record in cached]
 
         params = {
             "search_query": f"all:{keyword}",
@@ -59,34 +82,48 @@ class ArxivConnector(BaseConnector):
             "max_results": max_results,
         }
 
-        owns_client = self._client is None
-        client = self._client or httpx.AsyncClient(timeout=self._timeout, follow_redirects=True)
-        try:
-            try:
-                response = await client.get(ARXIV_API_URL, params=params)
-            except httpx.RequestError as exc:
-                raise ConnectorError(
-                    self.name, f"Network error while querying arXiv: {exc}"
-                ) from exc
-        finally:
-            if owns_client:
-                await client.aclose()
+        await self._rate_limiter.acquire()
+
+        async def _do_request(p=params):
+            return await self._client.get(ARXIV_API_URL, params=p)
+
+        response = await call_with_retry(
+            _do_request,
+            source=self.name,
+            endpoint=ARXIV_API_URL,
+            keyword=keyword,
+        )
 
         if response.status_code != 200:
             raise ConnectorError(
-                self.name,
-                f"arXiv returned HTTP {response.status_code} for keyword '{keyword}'.",
+                source=SourceEnum.ARXIV,
+                endpoint=ARXIV_API_URL,
+                keyword=keyword,
+                error_class=f"HTTP{response.status_code}",
+                message=f"arXiv returned HTTP {response.status_code} for keyword '{keyword}'.",
             )
 
         try:
-            return self._parse_feed(response.text, keyword)
+            raw_records = self._parse_feed(response.text)
         except ElementTree.ParseError as exc:
-            raise ConnectorError(self.name, f"Could not parse arXiv response: {exc}") from exc
+            raise ConnectorError(
+                source=SourceEnum.ARXIV,
+                endpoint=ARXIV_API_URL,
+                keyword=keyword,
+                error_class="ParseError",
+                message=f"Could not parse arXiv response: {exc}",
+            ) from exc
 
-    def _parse_feed(self, xml_text: str, keyword: str) -> list[RawArticle]:
+        set_cached(self.name, keyword, cache_params, raw_records)
+        return [self._map_to_raw_article(record, keyword) for record in raw_records]
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _parse_feed(self, xml_text: str) -> list[dict]:
         root = ElementTree.fromstring(xml_text)
-        collected_at = datetime.now(timezone.utc)
-        articles: list[RawArticle] = []
+        records: list[dict] = []
 
         for entry in root.findall(f"{ATOM_NS}entry"):
             title_el = entry.find(f"{ATOM_NS}title")
@@ -122,22 +159,43 @@ class ArxivConnector(BaseConnector):
             primary_category_el = entry.find(f"{ARXIV_NS}primary_category")
             domain = primary_category_el.get("term") if primary_category_el is not None else None
 
-            articles.append(
-                RawArticle(
-                    title=title,
-                    authors=authors,
-                    year=year,
-                    abstract=abstract,
-                    url=url,
-                    domain=domain,
-                    categories=categories,
-                    source=self.name,
-                    search_keyword=keyword,
-                    collection_date=collected_at,
-                )
-            )
+            records.append({
+                "title": title,
+                "authors": authors,
+                "year": year,
+                "abstract": abstract,
+                "url": url,
+                "domain": domain,
+                "categories": categories,
+            })
 
-        return articles
+        return records
+
+    def _map_to_raw_article(self, record: dict, keyword: str) -> RawArticle:
+        return RawArticle(
+            source=SourceEnum.ARXIV,
+            search_keyword=keyword,
+            collection_date=datetime.now(timezone.utc),
+            title=record["title"],
+            authors=record["authors"],
+            year=record["year"],
+            abstract=record["abstract"],
+            url=record["url"],
+            domain=record["domain"],
+            categories=record["categories"],
+        )
+
+    async def health_check(self) -> bool:
+        try:
+            response = await self._client.get(
+                ARXIV_API_URL, params={"search_query": "all:test", "max_results": 1}
+            )
+            return response.status_code == 200
+        except httpx.HTTPError:
+            return False
+
+    async def aclose(self) -> None:
+        await self._client.aclose()
 
 
 def _clean_text(value: str | None) -> str:

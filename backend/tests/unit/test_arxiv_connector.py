@@ -2,7 +2,18 @@ import httpx
 import pytest
 
 from app.connectors.arxiv import ARXIV_API_URL, ArxivConnector
-from app.domain.exceptions import ConnectorError
+from app.domain.entities import ConnectorError
+from app.infra.cache import clear_cache
+
+
+class _NoopRateLimiter:
+    async def acquire(self) -> None:
+        return None
+
+
+def _make_connector(**overrides) -> ArxivConnector:
+    overrides.setdefault("rate_limiter", _NoopRateLimiter())
+    return ArxivConnector(**overrides)
 
 
 def _make_feed(n: int) -> str:
@@ -27,13 +38,20 @@ def _make_feed(n: int) -> str:
 </feed>"""
 
 
+@pytest.fixture(autouse=True)
+def _reset_cache():
+    clear_cache()
+    yield
+    clear_cache()
+
+
 @pytest.mark.asyncio
 async def test_search_returns_records_with_required_fields(httpx_mock):
     httpx_mock.add_response(url=httpx.URL(ARXIV_API_URL).copy_merge_params(
         {"search_query": "all:large language models", "start": 0, "max_results": 10}
     ), text=_make_feed(10))
 
-    connector = ArxivConnector()
+    connector = _make_connector()
     results = await connector.search("large language models", max_results=10)
 
     assert len(results) >= 10
@@ -51,7 +69,7 @@ async def test_search_returns_records_with_required_fields(httpx_mock):
 async def test_search_maps_categories_and_domain(httpx_mock):
     httpx_mock.add_response(text=_make_feed(1))
 
-    connector = ArxivConnector()
+    connector = _make_connector()
     results = await connector.search("ai", max_results=1)
 
     assert results[0].domain == "cs.CL"
@@ -59,56 +77,95 @@ async def test_search_maps_categories_and_domain(httpx_mock):
 
 
 @pytest.mark.asyncio
-async def test_network_error_raises_connector_error(httpx_mock):
+async def test_network_error_raises_connector_error_after_retries(httpx_mock):
+    httpx_mock.add_exception(httpx.ConnectError("boom"))
+    httpx_mock.add_exception(httpx.ConnectError("boom"))
     httpx_mock.add_exception(httpx.ConnectError("boom"))
 
-    connector = ArxivConnector()
+    connector = _make_connector()
     with pytest.raises(ConnectorError) as exc_info:
         await connector.search("ai", max_results=5)
 
     assert exc_info.value.source == "arxiv"
+    assert len(httpx_mock.get_requests()) == 3  # 1 initial attempt + 2 retries, then give up
 
 
 @pytest.mark.asyncio
 async def test_non_200_response_raises_connector_error(httpx_mock):
-    httpx_mock.add_response(status_code=503, text="Service Unavailable")
+    # 404 is not retryable (only 5xx/429/network errors are) - surfaces immediately.
+    httpx_mock.add_response(status_code=404, text="Not Found")
 
-    connector = ArxivConnector()
+    connector = _make_connector()
     with pytest.raises(ConnectorError):
         await connector.search("ai", max_results=5)
+
+    assert len(httpx_mock.get_requests()) == 1
+
+
+@pytest.mark.asyncio
+async def test_persistent_5xx_raises_connector_error_after_max_retries(httpx_mock):
+    httpx_mock.add_response(status_code=503)
+    httpx_mock.add_response(status_code=503)
+    httpx_mock.add_response(status_code=503)
+
+    connector = _make_connector()
+    with pytest.raises(ConnectorError):
+        await connector.search("ai", max_results=5)
+
+    assert len(httpx_mock.get_requests()) == 3  # 1 initial attempt + 2 retries, then give up
+
+
+@pytest.mark.asyncio
+async def test_429_retries_then_succeeds(httpx_mock):
+    httpx_mock.add_response(status_code=429)
+    httpx_mock.add_response(text=_make_feed(1))
+
+    connector = _make_connector()
+    results = await connector.search("ai", max_results=1)
+
+    assert len(results) == 1
+    assert len(httpx_mock.get_requests()) == 2
 
 
 @pytest.mark.asyncio
 async def test_malformed_xml_raises_connector_error(httpx_mock):
     httpx_mock.add_response(text="<not-valid-xml")
 
-    connector = ArxivConnector()
+    connector = _make_connector()
     with pytest.raises(ConnectorError):
         await connector.search("ai", max_results=5)
 
 
 @pytest.mark.asyncio
 async def test_empty_keyword_rejected():
-    connector = ArxivConnector()
+    connector = _make_connector()
     with pytest.raises(ConnectorError):
         await connector.search("   ", max_results=5)
 
 
 @pytest.mark.asyncio
-async def test_rate_limit_enforced_between_calls(httpx_mock, monkeypatch):
+async def test_search_uses_the_shared_rate_limiter(httpx_mock):
     httpx_mock.add_response(text=_make_feed(1))
-    httpx_mock.add_response(text=_make_feed(1))
 
-    sleep_calls: list[float] = []
+    calls: list[int] = []
 
-    async def fake_sleep(seconds: float) -> None:
-        sleep_calls.append(seconds)
+    class _SpyRateLimiter:
+        async def acquire(self) -> None:
+            calls.append(1)
 
-    monkeypatch.setattr("app.connectors.arxiv.asyncio.sleep", fake_sleep)
-
-    connector = ArxivConnector()
-    await connector.search("ai", max_results=1)
+    connector = ArxivConnector(rate_limiter=_SpyRateLimiter())
     await connector.search("ai", max_results=1)
 
-    assert len(sleep_calls) == 1
-    assert sleep_calls[0] > 2.9
+    assert calls == [1]
+
+
+@pytest.mark.asyncio
+async def test_second_identical_search_is_served_from_cache(httpx_mock):
+    httpx_mock.add_response(text=_make_feed(1))
+
+    connector = _make_connector()
+    first = await connector.search("ai", max_results=1)
+    second = await connector.search("ai", max_results=1)  # no 2nd mock registered
+
+    assert len(httpx_mock.get_requests()) == 1
+    assert [a.title for a in first] == [a.title for a in second]
