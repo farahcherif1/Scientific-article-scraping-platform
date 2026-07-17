@@ -1,7 +1,9 @@
-from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
-from typing import Any, Optional
+from typing import Optional
+
+
+from pydantic import BaseModel, Field
 
 
 class CollectionStatus(StrEnum):
@@ -10,31 +12,32 @@ class CollectionStatus(StrEnum):
     WARNING = "warning"
     FAILED = "failed"
 
-
 class SourceEnum(StrEnum):
     OPENALEX = "openalex"
     ARXIV = "arxiv"
     CROSSREF = "crossref"
     PUBMED = "pubmed"
 
+class RawArticle(BaseModel):
+    """
+    Common bibliographic schema every connector maps into before
+    cleaning / deduplication (see Appendix A - Data Dictionary).
+    """
 
-@dataclass
-class RawArticle:
-    """Connector output before normalization (US-04.1 cleans/normalizes it)."""
+    title: str
+    authors: list[str] = Field(default_factory=list)
+    year: int | None = None
+    abstract: str | None = None
+    url: str | None = None
+    doi: str | None = None
+    venue: str | None = None
+    domain: str | None = None
+    categories: list[str] = Field(default_factory=list)
+    citation_count: Optional[int] = None
 
     source: SourceEnum
     search_keyword: str
     collection_date: datetime
-    title: Optional[str] = None
-    authors_raw: Optional[list[str]] = None
-    year: Optional[int] = None
-    abstract: Optional[str] = None
-    doi: Optional[str] = None
-    venue: Optional[str] = None
-    citation_count: Optional[int] = None
-    url: Optional[str] = None
-    domain: Optional[str] = None
-    extra: dict[str, Any] = field(default_factory=dict)
 
 
 class ConnectorError(Exception):
@@ -45,7 +48,7 @@ class ConnectorError(Exception):
     (US-03.4: one source failing must not block the others).
     """
 
-    def __init__(self, *, source: str, endpoint: str, keyword: str, error_class: str, message: str):
+    def __init__(self, *, source: SourceEnum, endpoint: str, keyword: str, error_class: str, message: str):
         self.source = source
         self.endpoint = endpoint
         self.keyword = keyword

@@ -174,8 +174,8 @@ class OpenAlexConnector(BaseConnector):
             source=SourceEnum.OPENALEX,
             search_keyword=keyword,
             collection_date=datetime.now(timezone.utc),
-            title=record.get("title") or record.get("display_name"),
-            authors_raw=authors_raw or None,
+            title=record.get("title") or record.get("display_name") or "",
+            authors=authors_raw,
             year=record.get("publication_year"),
             abstract=abstract,
             doi=doi.lower() if doi else None,
@@ -183,7 +183,6 @@ class OpenAlexConnector(BaseConnector):
             citation_count=record.get("cited_by_count"),  # -> citation_count
             url=record.get("id"),
             domain=domain,  # concepts -> domain
-            extra={"openalex_id": record.get("id")},
         )
 
     @staticmethod

@@ -22,14 +22,9 @@ class BaseConnector(ABC):
         self,
         keyword: str,
         max_results: int,
-        filters: Optional[SearchFilters] = None,
+        filters: dict | None = None,
     ) -> list[RawArticle]:
-        """Fetch up to max_results articles for keyword, applying filters."""
+        """Return up to max_results RawArticle records for the given keyword."""
+        raise NotImplementedError
 
-    @abstractmethod
-    async def health_check(self) -> bool:
-        """Cheap request used to confirm the source is reachable."""
-
-    @abstractmethod
-    async def aclose(self) -> None:
-        """Release the underlying HTTP client."""
+    

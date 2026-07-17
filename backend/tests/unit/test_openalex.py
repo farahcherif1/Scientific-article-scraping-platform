@@ -69,7 +69,7 @@ async def test_field_mapping(httpx_mock):
 
     assert article.source == SourceEnum.OPENALEX
     assert article.title == "A Great Paper"
-    assert article.authors_raw == ["Jane Doe", "John Smith"]
+    assert article.authors == ["Jane Doe", "John Smith"]
     assert article.year == 2023
     assert article.citation_count == 42  # cited_by_count -> citation_count
     assert article.domain == "Machine Learning"  # concepts -> domain
@@ -92,7 +92,7 @@ async def test_missing_optional_fields_are_none_not_dropped(httpx_mock):
     [article] = await connector.search("ai", max_results=5)
 
     assert article.doi is None
-    assert article.authors_raw is None
+    assert article.authors == []
     assert article.domain is None
     assert article.venue is None
     assert article.abstract is None
