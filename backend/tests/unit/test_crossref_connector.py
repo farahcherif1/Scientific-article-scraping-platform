@@ -1,7 +1,7 @@
 import httpx
 import pytest
 
-from app.connectors.crossref import CROSSREF_API_URL, CrossrefConnector
+from app.connectors.crossref import  CrossrefConnector
 from app.domain.entities import ConnectorError
 from app.infra.cache import clear_cache
 
