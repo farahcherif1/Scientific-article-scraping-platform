@@ -4,11 +4,14 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1 import collections, history, keywords
+from app.config import settings
 from app.db.session import init_db
+from app.infra.logging import configure_logging
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    configure_logging(settings.log_level)
     init_db()
     yield
 

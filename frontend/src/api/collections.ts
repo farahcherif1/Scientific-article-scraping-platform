@@ -28,6 +28,16 @@ interface PydanticErrorItem {
   msg?: string;
 }
 
+async function parseCollectionParamsError(res: Response, fallback: string): Promise<string> {
+  const body = await res.json().catch(() => null);
+  return Array.isArray(body?.detail)
+    ? body.detail
+        .map((d: PydanticErrorItem) => d.msg)
+        .filter(Boolean)
+        .join(" ") || fallback
+    : body?.detail || fallback;
+}
+
 export async function validateCollectionParams(
   payload: CollectionParamsPayload
 ): Promise<CollectionParamsResponse> {
@@ -37,15 +47,26 @@ export async function validateCollectionParams(
     body: JSON.stringify(payload),
   });
   if (!res.ok) {
-    const body = await res.json().catch(() => null);
-    const detail: string =
-      Array.isArray(body?.detail)
-        ? body.detail
-            .map((d: PydanticErrorItem) => d.msg)
-            .filter(Boolean)
-            .join(" ")
-        : body?.detail || "The backend rejected this configuration.";
-    throw new Error(detail);
+    throw new Error(await parseCollectionParamsError(res, "The backend rejected this configuration."));
+  }
+  return res.json();
+}
+
+export interface StartCollectionResponse {
+  id: string;
+  status: CollectionRunStatus;
+}
+
+export async function startCollection(
+  payload: CollectionParamsPayload
+): Promise<StartCollectionResponse> {
+  const res = await fetch(`${API_BASE}/api/v1/collections`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    throw new Error(await parseCollectionParamsError(res, "Could not start the collection."));
   }
   return res.json();
 }

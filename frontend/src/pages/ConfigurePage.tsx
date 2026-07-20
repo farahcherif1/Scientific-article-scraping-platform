@@ -15,12 +15,11 @@ import {
 } from "lucide-react";
 import TopNav from "../components/TopNav";
 import Toggle from "../components/Toggle";
-import { validateCollectionParams } from "../api/collections";
+import { startCollection } from "../api/collections";
 
 interface SourceMeta {
   id: string;
   name: string;
-  priority: "MUST-HAVE" | "SHOULD-HAVE" | "COULD-HAVE";
   description: string;
   defaultChecked: boolean;
 }
@@ -29,30 +28,20 @@ const SOURCES: SourceMeta[] = [
   {
     id: "arxiv",
     name: "arXiv",
-    priority: "MUST-HAVE",
     description: "Physics, Mathematics, Computer Science preprints",
     defaultChecked: true,
   },
   {
     id: "openalex",
     name: "OpenAlex",
-    priority: "MUST-HAVE",
     description: "Global open index of scientific papers and metadata",
     defaultChecked: true,
   },
   {
     id: "crossref",
     name: "Crossref",
-    priority: "SHOULD-HAVE",
     description: "Metadata registry with persistent DOIs for publications",
     defaultChecked: true,
-  },
-  {
-    id: "semantic_scholar",
-    name: "Semantic Scholar",
-    priority: "COULD-HAVE",
-    description: "AI-driven academic search engine database",
-    defaultChecked: false,
   },
 ];
 
@@ -112,7 +101,7 @@ export default function ConfigurePage() {
     setIsSubmitting(true);
     setServerMessage(null);
     try {
-      await validateCollectionParams({
+      const { id } = await startCollection({
         keywords,
         sources: activeSourceIds,
         max_articles_per_keyword: maxArticles,
@@ -123,16 +112,12 @@ export default function ConfigurePage() {
         include_missing_abstract: includeMissingAbstract,
         exclude_duplicates_on_export: excludeDuplicates,
       });
-      setServerMessage({
-        kind: "success",
-        text: "Configuration validated by the backend. (Collection orchestrator lands in Sprint 3-4.)",
-      });
+      navigate(`/collections/${id}/progress`);
     } catch (err) {
       setServerMessage({
         kind: "error",
         text: err instanceof Error ? err.message : "The backend rejected this configuration.",
       });
-    } finally {
       setIsSubmitting(false);
     }
   }
@@ -181,18 +166,7 @@ export default function ConfigurePage() {
                         {checked && <Check className="h-3.5 w-3.5 text-white" />}
                       </span>
                       <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold text-slate-900">{source.name}</span>
-                          <span
-                            className={`rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide ${
-                              source.priority === "COULD-HAVE"
-                                ? "bg-slate-100 text-slate-500"
-                                : "bg-emerald-50 text-emerald-700"
-                            }`}
-                          >
-                            {source.priority}
-                          </span>
-                        </div>
+                        <span className="font-semibold text-slate-900">{source.name}</span>
                         <p className="mt-0.5 text-sm text-slate-500">{source.description}</p>
                       </div>
                     </div>
