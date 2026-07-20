@@ -10,7 +10,6 @@ class SourceId(str, Enum):
     arxiv = "arxiv"
     openalex = "openalex"
     crossref = "crossref"
-    semantic_scholar = "semantic_scholar"
 
 
 class CollectionParamsRequest(BaseModel):

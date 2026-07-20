@@ -17,7 +17,6 @@ class Settings(BaseSettings):
     rate_limit_arxiv_interval_s: int = 3
     rate_limit_openalex_rps: int = 10
     rate_limit_crossref_rps: int = 50
-    rate_limit_pubmed_rps: int = 3
 
     cache_ttl_hours: int = 24
     log_level: str = "INFO"

@@ -87,14 +87,14 @@ async def test_partial_keyword_failure_within_a_source_still_counts_as_done():
 
 async def test_unregistered_source_is_marked_failed_without_blocking_others():
     keywords = ["ai", "nlp"]
-    state = create_state("COL-D", keywords=keywords, sources=["arxiv", "semantic_scholar"])
+    state = create_state("COL-D", keywords=keywords, sources=["arxiv", "future_source"])
     factories = {"arxiv": lambda: _FakeConnector("arxiv", articles_per_keyword=3)}
 
     articles = await run_collection(state, connector_factories=factories, max_articles_per_keyword=3)
 
     assert len(articles) == 6
-    assert state.source_progress["semantic_scholar"].status == "failed"
-    assert "not implemented" in state.source_progress["semantic_scholar"].detail
+    assert state.source_progress["future_source"].status == "failed"
+    assert "not implemented" in state.source_progress["future_source"].detail
     assert state.completed_pairs == state.total_pairs == 4
 
 

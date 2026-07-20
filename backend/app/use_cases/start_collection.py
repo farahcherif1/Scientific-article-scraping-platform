@@ -26,9 +26,8 @@ from app.schemas.collections import CollectionParamsRequest
 
 logger = logging.getLogger("app.use_cases.start_collection")
 
-# Only sources with a real connector can run; anything else (e.g.
-# semantic_scholar, still schema-selectable per SourceId) is reported as a
-# failed source by the orchestrator without blocking the others.
+# Only sources with a real connector can run; any other SourceId is
+# reported as a failed source by the orchestrator without blocking the others.
 CONNECTOR_FACTORIES: dict[str, object] = {
     "arxiv": lambda: ArxivConnector(),
     "openalex": lambda: OpenAlexConnector(polite_pool_email=settings.polite_pool_email),

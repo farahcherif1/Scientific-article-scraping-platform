@@ -10,7 +10,7 @@ All connectors (arXiv, OpenAlex, Crossref) are built on the same shared infrastr
 |---|---|
 | `app/connectors/base.py` | `BaseConnector` interface every connector implements (`search(keyword, max_results, filters)`) |
 | `app/infra/retries.py` | `call_with_retry()` — resilient HTTP layer (US-03.6). Retries only on 5xx, 429, and network/timeout errors; exponential backoff (100ms → 400ms → 1600ms), max 2 retries. Other 4xx responses (e.g. 404, 400) are returned as-is, never retried, and surfaced by the connector as `ConnectorError` immediately. Every attempt logs duration; persistent failure logs a structured entry and raises `ConnectorError`. |
-| `app/orchestrator/rate_limiter.py` | `AsyncRateLimiter` — one shared instance per source (`ARXIV_RATE_LIMITER`, `CROSSREF_RATE_LIMITER`, `OPENALEX_RATE_LIMITER`, `PUBMED_RATE_LIMITER`), enforcing each source's minimum interval between requests. |
+| `app/orchestrator/rate_limiter.py` | `AsyncRateLimiter` — one shared instance per source (`ARXIV_RATE_LIMITER`, `CROSSREF_RATE_LIMITER`, `OPENALEX_RATE_LIMITER`), enforcing each source's minimum interval between requests. |
 | `app/infra/cache.py` | In-memory, per-process cache of raw connector responses, keyed by `(source, keyword, params)`, TTL from `settings.cache_ttl_hours`. Lets the dedup/cleaning pipeline be re-tuned without re-hitting the API. |
 | `app/domain/entities.py` | `RawArticle` (common schema), `SourceEnum`, `ConnectorError(source, endpoint, keyword, error_class, message)` |
 

@@ -168,24 +168,9 @@ def test_run_with_a_failing_source_reports_warning_status(monkeypatch):
     assert by_source["openalex"]["status"] == "done"
 
 
-def test_unimplemented_source_does_not_block_the_run(monkeypatch):
-    monkeypatch.setattr(
-        start_collection_module,
-        "CONNECTOR_FACTORIES",
-        {"arxiv": lambda: _FakeConnector("arxiv", articles_per_keyword=5)},
-    )
-
-    start = client.post(
-        "/api/v1/collections", json=_payload(sources=["arxiv", "semantic_scholar"])
-    )
-    collection_id = start.json()["id"]
-
-    progress = client.get(f"/api/v1/collections/{collection_id}/progress")
-    body = progress.json()
-    assert body["status"] == "warning"
-    by_source = {s["source"]: s for s in body["sources"]}
-    assert by_source["arxiv"]["status"] == "done"
-    assert by_source["semantic_scholar"]["status"] == "failed"
+def test_source_not_in_the_schema_enum_returns_422():
+    response = client.post("/api/v1/collections", json=_payload(sources=["arxiv", "not_a_real_source"]))
+    assert response.status_code == 422
 
 
 def test_exceeding_hard_cap_returns_422_before_any_run_starts():

@@ -29,4 +29,3 @@ class AsyncRateLimiter:
 OPENALEX_RATE_LIMITER = AsyncRateLimiter(1 / settings.rate_limit_openalex_rps)
 ARXIV_RATE_LIMITER = AsyncRateLimiter(settings.rate_limit_arxiv_interval_s)
 CROSSREF_RATE_LIMITER = AsyncRateLimiter(1 / settings.rate_limit_crossref_rps)
-PUBMED_RATE_LIMITER = AsyncRateLimiter(1 / settings.rate_limit_pubmed_rps)

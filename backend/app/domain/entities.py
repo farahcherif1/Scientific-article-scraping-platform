@@ -16,12 +16,11 @@ class SourceEnum(StrEnum):
     OPENALEX = "openalex"
     ARXIV = "arxiv"
     CROSSREF = "crossref"
-    PUBMED = "pubmed"
 
 class RawArticle(BaseModel):
     """
     Common bibliographic schema every connector maps into before
-    cleaning / deduplication (see Appendix A - Data Dictionary).
+    cleaning / deduplication .
     """
 
     title: str

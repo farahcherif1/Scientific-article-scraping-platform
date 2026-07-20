@@ -20,10 +20,14 @@
     same MVP tradeoff as `app/infra/cache.py` — not shared across workers,
     lost on restart. A restart mid-run leaves the `collection_runs` row stuck
     at `status=running` forever (nothing times it out).
-  - Only `arxiv`, `openalex`, and `crossref` have connectors. `semantic_scholar`
-    is still schema-selectable (`SourceId`) but has no `CONNECTOR_FACTORIES`
-    entry — the orchestrator reports it as a failed source (AC-compliant:
-    doesn't block the other sources) rather than rejecting the request.
+  - `SourceId` (schema) and `CONNECTOR_FACTORIES` (orchestrator) now list
+    exactly the same three sources (`arxiv`, `openalex`, `crossref`) — every
+    schema-valid request is guaranteed to reach a real connector. The
+    orchestrator's "unregistered source" handling (fails that source without
+    blocking the others) is still there as a safety net for whenever a
+    fourth source is added ahead of its connector, and is covered by
+    `test_unregistered_source_is_marked_failed_without_blocking_others` in
+    `test_orchestrator_runner.py`.
   - Abort is cooperative: `abort_requested` is only checked between keywords,
     not mid-request, so an in-flight HTTP call to a source still completes
     before the abort takes effect.
@@ -51,10 +55,12 @@
   - `app/infra/retries.py` treats HTTP 429 as retryable alongside 5xx/network
     errors (per US-03.2's AC), while all other 4xx responses are returned
     as-is per US-03.6's "never 4xx" rule.
-  - `app/orchestrator/rate_limiter.py` currently defines limiter instances
-    for all four planned sources (OpenAlex/arXiv/CrossRef/PubMed) from
-    `.env` config, even though only the OpenAlex connector exists so far —
-    arXiv/CrossRef/PubMed connectors are still empty stub files.
+  - `app/orchestrator/rate_limiter.py` defines one limiter instance per
+    connector-backed source (OpenAlex/arXiv/CrossRef) from `.env` config.
+    A fourth, unimplemented `pubmed` source and a schema-only
+    `semantic_scholar` option were removed from the codebase (config,
+    rate limiter, `SourceEnum`/`SourceId`, frontend labels) since neither
+    had a connector and both were dead surface area.
   - `app/infra/logging.py` (T-03.6.2) now configures a JSON formatter on the
     root logger via `configure_logging()`, called from `main.py`'s lifespan
     hook, so `retries.py`'s `extra={...}` fields render as JSON.
