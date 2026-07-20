@@ -160,13 +160,14 @@ class OpenAlexConnector(BaseConnector):
         concepts = record.get("concepts", [])
         domain = concepts[0]["display_name"] if concepts else None
 
-        venue = (
-            record.get("primary_location", {})
-            .get("source", {})
-            .get("display_name")
-            if record.get("primary_location")
-            else None
-        )
+        venue = None
+        primary_location = record.get("primary_location")
+        if primary_location:
+            # `source` is a present-but-null key (not just absent) when
+            # OpenAlex hasn't identified a venue for the work - seen live.
+            source = primary_location.get("source")
+            if source:
+                venue = source.get("display_name")
 
         abstract = self._reconstruct_abstract(record.get("abstract_inverted_index"))
 

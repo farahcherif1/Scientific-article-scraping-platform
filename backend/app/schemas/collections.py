@@ -1,6 +1,9 @@
 from enum import Enum
+from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
+
+from app.domain.entities import CollectionStatus
 
 
 class SourceId(str, Enum):
@@ -50,3 +53,26 @@ class CollectionParamsSummary(BaseModel):
 class CollectionParamsResponse(BaseModel):
     valid: bool = True
     summary: CollectionParamsSummary
+
+
+class StartCollectionResponse(BaseModel):
+    id: str
+    status: CollectionStatus = CollectionStatus.RUNNING
+
+
+class SourceProgressItem(BaseModel):
+    source: str
+    status: Literal["pending", "running", "done", "failed"]
+    detail: str | None = None
+    articles_fetched: int = 0
+
+
+class CollectionProgressResponse(BaseModel):
+    id: str
+    status: CollectionStatus
+    overall_progress: float
+    current_keyword: str | None
+    elapsed_seconds: int
+    sources: list[SourceProgressItem]
+    warning: str | None
+    error: str | None

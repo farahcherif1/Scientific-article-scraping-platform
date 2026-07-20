@@ -78,6 +78,18 @@ async def test_field_mapping(httpx_mock):
     assert article.abstract == "Hello world"  # inverted index reconstructed
 
 
+async def test_primary_location_with_null_source_does_not_crash(httpx_mock):
+    # Seen live: primary_location is present but its "source" key is null
+    # (not absent) when OpenAlex hasn't identified a venue for the work.
+    record = _make_record(primary_location={"source": None})
+    httpx_mock.add_response(json=_page([record], next_cursor=None))
+
+    connector = _make_connector()
+    [article] = await connector.search("ai", max_results=5)
+
+    assert article.venue is None
+
+
 async def test_missing_optional_fields_are_none_not_dropped(httpx_mock):
     sparse = _make_record(
         doi=None,
