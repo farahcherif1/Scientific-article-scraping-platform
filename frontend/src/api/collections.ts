@@ -49,3 +49,48 @@ export async function validateCollectionParams(
   }
   return res.json();
 }
+
+export type CollectionRunStatus = "running" | "completed" | "warning" | "failed";
+export type SourceRunStatus = "pending" | "running" | "done" | "failed";
+
+export interface SourceProgress {
+  source: string;
+  status: SourceRunStatus;
+  detail: string | null;
+  articles_fetched: number;
+}
+
+export interface CollectionProgress {
+  id: string;
+  status: CollectionRunStatus;
+  overall_progress: number; // 0-100
+  current_keyword: string | null;
+  elapsed_seconds: number;
+  sources: SourceProgress[];
+  warning: string | null;
+  error: string | null;
+}
+
+async function parseErrorDetail(res: Response, fallback: string): Promise<string> {
+  try {
+    const body = await res.json();
+    return body.error?.message || body.detail || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+export async function fetchCollectionProgress(id: string): Promise<CollectionProgress> {
+  const res = await fetch(`${API_BASE}/api/v1/collections/${id}/progress`);
+  if (!res.ok) {
+    throw new Error(await parseErrorDetail(res, "Could not reach the collection status endpoint."));
+  }
+  return res.json();
+}
+
+export async function abortCollection(id: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/v1/collections/${id}/abort`, { method: "POST" });
+  if (!res.ok) {
+    throw new Error(await parseErrorDetail(res, "Could not abort the collection."));
+  }
+}
