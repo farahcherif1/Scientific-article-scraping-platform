@@ -80,6 +80,20 @@
   (the "100-article hard cap" panel) is still static copy rather than a
   dynamic warning driven by the actual run — `CollectionPage` is where a
   real capped-run warning would show up, via `progress.warning`.
+- **US-04.1 (metadata normalization) is implemented as pure domain functions,
+  not yet wired into the collection pipeline.** `app/domain/cleaning.py` adds
+  `normalize_title`, `normalize_authors`, `normalize_year`, `normalize_doi`,
+  `normalize_abstract`, `normalize_article`/`normalize_articles`, and
+  `build_missing_value_report`, mapping `RawArticle` -> the new
+  `ArticleClean` entity (`app/domain/entities.py`). Covered by 38 unit tests
+  in `test_metadata_normalization.py` (happy path + malformed-input edge
+  cases per field, plus the missing-value report). Not yet called from
+  `app/orchestrator/runner.py::run_collection` or `start_collection.py`:
+  there is still no `articles` table and no endpoint to read collected
+  articles back (see the `COL-000x` progress-only limitation above), so
+  wiring normalization into the pipeline today would have no observable
+  effect - it belongs with whichever story adds article persistence
+  (US-05.1 territory) rather than with US-04.1's own subtasks.
 - **PubMed and Semantic Scholar connectors are implemented**
   (`app/connectors/pubmed.py`, `app/connectors/semantic_scholar.py`), reusing
   the same shared infra as arXiv/OpenAlex/Crossref (`BaseConnector`,
