@@ -41,6 +41,33 @@ class RawArticle(BaseModel):
     collection_date: datetime
 
 
+class ArticleClean(BaseModel):
+    """
+    Normalized bibliographic record produced by `app.domain.cleaning`
+    (US-04.1) from a `RawArticle`. Missing fields are kept as `None` and
+    listed in `missing_fields` rather than dropped, so downstream consumers
+    (ranking, export, UI badges) can distinguish "absent" from "not yet
+    normalized".
+    """
+
+    title: str
+    authors: list[str] = Field(default_factory=list)
+    year: int | None = None
+    abstract: str | None = None
+    url: str | None = None
+    doi: str | None = None
+    venue: str | None = None
+    domain: str | None = None
+    categories: list[str] = Field(default_factory=list)
+    citation_count: Optional[int] = None
+
+    source: SourceEnum
+    search_keyword: str
+    collection_date: datetime
+
+    missing_fields: list[str] = Field(default_factory=list)
+
+
 class ConnectorError(Exception):
     """
     Raised by a connector when a request to a source fails after the
