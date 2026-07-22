@@ -43,6 +43,18 @@ const SOURCES: SourceMeta[] = [
     description: "Metadata registry with persistent DOIs for publications",
     defaultChecked: true,
   },
+  {
+    id: "pubmed",
+    name: "PubMed",
+    description: "Biomedical and life sciences literature (NCBI)",
+    defaultChecked: false,
+  },
+  {
+    id: "semantic_scholar",
+    name: "Semantic Scholar",
+    description: "AI-powered index across all fields of research",
+    defaultChecked: false,
+  },
 ];
 
 const LANGUAGE_OPTIONS = ["Any", "English", "French", "German", "Spanish", "Other"];
