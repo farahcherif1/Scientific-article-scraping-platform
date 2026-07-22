@@ -15,6 +15,8 @@ const SOURCE_LABELS: Record<string, string> = {
   arxiv: "arXiv",
   openalex: "OpenAlex",
   crossref: "Crossref",
+  pubmed: "PubMed",
+  semantic_scholar: "Semantic Scholar",
 };
 
 const SOURCE_PILL_STYLES: Record<SourceRunStatus, string> = {

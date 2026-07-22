@@ -60,7 +60,9 @@
     A fourth, unimplemented `pubmed` source and a schema-only
     `semantic_scholar` option were removed from the codebase (config,
     rate limiter, `SourceEnum`/`SourceId`, frontend labels) since neither
-    had a connector and both were dead surface area.
+    had a connector and both were dead surface area. **Both were
+    subsequently reintroduced with real connectors** — see the PubMed /
+    Semantic Scholar entry below.
   - `app/infra/logging.py` (T-03.6.2) now configures a JSON formatter on the
     root logger via `configure_logging()`, called from `main.py`'s lifespan
     hook, so `retries.py`'s `extra={...}` fields render as JSON.
@@ -78,6 +80,39 @@
   (the "100-article hard cap" panel) is still static copy rather than a
   dynamic warning driven by the actual run — `CollectionPage` is where a
   real capped-run warning would show up, via `progress.warning`.
+- **PubMed and Semantic Scholar connectors are implemented**
+  (`app/connectors/pubmed.py`, `app/connectors/semantic_scholar.py`), reusing
+  the same shared infra as arXiv/OpenAlex/Crossref (`BaseConnector`,
+  `call_with_retry`, per-source `AsyncRateLimiter`, the in-memory response
+  cache) plus Crossref's `normalize_doi` for DOI cleanup. `SourceEnum` /
+  `SourceId` list five sources again; `CONNECTOR_FACTORIES` in
+  `start_collection.py` wires both in, so requests naming either source reach
+  a real connector rather than the orchestrator's "unregistered source"
+  fallback. Covered by `test_pubmed_connector.py`,
+  `test_semantic_scholar_connector.py`, and
+  `test_connector_factories_wiring.py` (mocked HTTP via `pytest-httpx`; no
+  live-run test suite entry, consistent with the other connectors). Known
+  scope limits:
+  - Neither has been run against the real API end-to-end through the
+    orchestrator yet (only `scripts/check_pubmed_live.py` /
+    `check_semantic_scholar_live.py`, the same manual-only pattern already
+    used for arXiv/Crossref) — no live orchestrator run recorded for these
+    two sources the way US-03.4's note above records one for arXiv+OpenAlex.
+  - PubMed's `search()` makes two sequential HTTP requests per keyword
+    (`esearch` then `efetch`), each independently rate-limited and retried;
+    this roughly doubles PubMed's per-keyword latency relative to the
+    single-request connectors and isn't reflected in any runtime budget/SLA
+    doc yet.
+  - Semantic Scholar's unauthenticated pool is shared globally across all API
+    consumers, not just this app — the conservative 1 req/s default
+    (`RATE_LIMIT_SEMANTIC_SCHOLAR_RPS`) is a guess, not a documented per-IP
+    guarantee, so 429s are still possible under real-world load even with the
+    limiter in place.
+  - Both are frontend-selectable in `ConfigurePage` but default to
+    **unchecked** (`defaultChecked: false`), unlike the original three
+    sources — a deliberate choice so existing collection behavior doesn't
+    change by default; not yet confirmed with product/UX as the permanent
+    default.
 - **Frontend is now wired to `POST /collections`.** `ConfigurePage.handleStart`
   calls the new `startCollection()` (`frontend/src/api/collections.ts`) and
   navigates to `/collections/:id/progress` on success, so `CollectionPage` is

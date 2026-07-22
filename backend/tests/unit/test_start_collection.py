@@ -181,3 +181,11 @@ def test_exceeding_hard_cap_returns_422_before_any_run_starts():
 def test_request_with_no_sources_returns_422():
     response = client.post("/api/v1/collections", json=_payload(sources=[]))
     assert response.status_code == 422
+
+
+def test_pubmed_and_semantic_scholar_are_accepted_by_the_schema():
+    response = client.post(
+        "/api/v1/collections",
+        json=_payload(sources=["pubmed", "semantic_scholar"]),
+    )
+    assert response.status_code == 202

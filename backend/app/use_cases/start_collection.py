@@ -17,6 +17,8 @@ from app.connectors.arxiv import ArxivConnector
 from app.connectors.base import SearchFilters
 from app.connectors.crossref import CrossrefConnector
 from app.connectors.openalex import OpenAlexConnector
+from app.connectors.pubmed import PubMedConnector
+from app.connectors.semantic_scholar import SemanticScholarConnector
 from app.db.models import CollectionRun
 from app.db.session import SessionLocal
 from app.domain.entities import CollectionStatus
@@ -32,6 +34,8 @@ CONNECTOR_FACTORIES: dict[str, object] = {
     "arxiv": lambda: ArxivConnector(),
     "openalex": lambda: OpenAlexConnector(polite_pool_email=settings.polite_pool_email),
     "crossref": lambda: CrossrefConnector(),
+    "pubmed": lambda: PubMedConnector(),
+    "semantic_scholar": lambda: SemanticScholarConnector(),
 }
 
 # BackgroundTasks run outside request scope, so the final-state write can't

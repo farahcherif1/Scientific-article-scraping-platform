@@ -17,6 +17,14 @@ class Settings(BaseSettings):
     rate_limit_arxiv_interval_s: int = 3
     rate_limit_openalex_rps: int = 10
     rate_limit_crossref_rps: int = 50
+    rate_limit_pubmed_rps: int = 3
+    rate_limit_semantic_scholar_rps: int = 1
+
+    # Optional - neither source requires a key. When set, PubMed's E-utilities
+    # allow 10 req/s instead of 3, and Semantic Scholar's Graph API gets a
+    # faster tier instead of sharing the public unauthenticated pool.
+    pubmed_api_key: str | None = None
+    semantic_scholar_api_key: str | None = None
 
     cache_ttl_hours: int = 24
     log_level: str = "INFO"

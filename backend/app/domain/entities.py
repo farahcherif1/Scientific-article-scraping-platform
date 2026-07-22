@@ -16,6 +16,8 @@ class SourceEnum(StrEnum):
     OPENALEX = "openalex"
     ARXIV = "arxiv"
     CROSSREF = "crossref"
+    PUBMED = "pubmed"
+    SEMANTIC_SCHOLAR = "semantic_scholar"
 
 class RawArticle(BaseModel):
     """
