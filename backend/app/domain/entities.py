@@ -65,6 +65,11 @@ class ArticleClean(BaseModel):
     search_keyword: str
     collection_date: datetime
 
+    duplicate_group_id: str | None = None
+    duplicate_similarity_score: int | None = None
+    duplicate_rule: str | None = None
+    is_duplicate: bool = False
+
     missing_fields: list[str] = Field(default_factory=list)
 
 
