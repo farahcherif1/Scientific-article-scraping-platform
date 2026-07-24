@@ -10,8 +10,7 @@ Rate limit per arXiv's own guidance: ~1 request every 3 seconds
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 from xml.etree import ElementTree
 
 import httpx
@@ -34,7 +33,7 @@ class ArxivConnector(BaseConnector):
     def __init__(
         self,
         *,
-        http_client: Optional[httpx.AsyncClient] = None,
+        http_client: httpx.AsyncClient | None = None,
         rate_limiter=ARXIV_RATE_LIMITER,
         connect_timeout_s: float = 10.0,
         read_timeout_s: float = 30.0,
@@ -175,7 +174,7 @@ class ArxivConnector(BaseConnector):
         return RawArticle(
             source=SourceEnum.ARXIV,
             search_keyword=keyword,
-            collection_date=datetime.now(timezone.utc),
+            collection_date=datetime.now(UTC),
             title=record["title"],
             authors=record["authors"],
             year=record["year"],
