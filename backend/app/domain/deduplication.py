@@ -41,7 +41,7 @@ def _author_similarity(a1: list[str], a2: list[str]) -> int:
         return 0
     joined1 = " ".join(a1).lower()
     joined2 = " ".join(a2).lower()
-    return int(round(fuzz.token_sort_ratio(joined1, joined2)))
+    return fuzz.token_sort_ratio(joined1, joined2)
 
 
 def _make_group_id(index: int) -> str:
@@ -81,7 +81,7 @@ def deduplicate_articles(articles: list[ArticleClean]) -> DeduplicationResult:
         if article.doi:
             doi_index_map.setdefault(article.doi, []).append(index)
 
-    for doi, indices in doi_index_map.items():
+    for indices in doi_index_map.values():
         if len(indices) <= 1:
             continue
         first = indices[0]
@@ -99,7 +99,7 @@ def deduplicate_articles(articles: list[ArticleClean]) -> DeduplicationResult:
             if not left_title or not right_title:
                 continue
 
-            ratio = int(round(fuzz.ratio(left_title, right_title)))
+            ratio = fuzz.ratio(left_title, right_title)
             same_year = (
                 articles[i].year is not None
                 and articles[j].year is not None

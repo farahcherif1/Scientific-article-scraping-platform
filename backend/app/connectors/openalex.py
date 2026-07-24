@@ -17,7 +17,7 @@ from datetime import UTC, datetime
 import httpx
 
 from app.connectors.base import BaseConnector, SearchFilters
-from app.domain.entities import ConnectorError, RawArticle, SourceEnum
+from app.domain.entities import RawArticle, SourceEnum
 from app.infra.cache import get_cached, set_cached
 from app.infra.retries import call_with_retry
 from app.orchestrator.rate_limiter import OPENALEX_RATE_LIMITER

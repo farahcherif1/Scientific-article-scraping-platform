@@ -8,7 +8,6 @@ logged as a limitation for the multi-worker/Postgres cutover.
 from __future__ import annotations
 
 import time
-from typing import Optional
 
 from app.config import settings
 
@@ -21,7 +20,7 @@ def _make_key(source: str, keyword: str, params: dict) -> CacheKey:
     return (source, keyword.lower(), tuple(sorted(params.items())))
 
 
-def get_cached(source: str, keyword: str, params: dict) -> Optional[list[dict]]:
+def get_cached(source: str, keyword: str, params: dict) -> list[dict] | None:
     key = _make_key(source, keyword, params)
     entry = _store.get(key)
     if entry is None:
