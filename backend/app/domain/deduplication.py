@@ -110,12 +110,12 @@ def deduplicate_articles(articles: list[ArticleClean]) -> DeduplicationResult:
             rule: str | None = None
             score: int | None = None
 
-            if same_year and ratio >= 92:
-                rule = "title_fuzzy_same_year"
-                score = ratio
-            elif left_title == right_title and same_year:
+            if left_title == right_title and same_year:
                 rule = "title_exact_same_year"
                 score = 100
+            elif same_year and ratio >= 92:
+                rule = "title_fuzzy_same_year"
+                score = ratio
             elif left_title == right_title and authors_similarity >= 85:
                 rule = "title_exact_authors_similar"
                 score = max(90, min(99, authors_similarity))
@@ -133,7 +133,6 @@ def deduplicate_articles(articles: list[ArticleClean]) -> DeduplicationResult:
 
     dedup_groups: list[DuplicateGroupAuditEntry] = []
     duplicate_count = 0
-    article_group_stats: dict[int, tuple[str, int, str]] = {}
 
     for root, members in groups_by_root.items():
         if len(members) <= 1:
@@ -176,3 +175,20 @@ def deduplicate_articles(articles: list[ArticleClean]) -> DeduplicationResult:
                 duplicate_count += 1
 
     return DeduplicationResult(articles=articles, duplicate_count=duplicate_count, groups=dedup_groups)
+
+
+def filter_for_export(
+    articles: list[ArticleClean], *, exclude_duplicates: bool
+) -> list[ArticleClean]:
+    """
+    Export-time filter (not deletion): the deduplication engine above always
+    marks every article and never removes anything (Collection Charter B.3).
+    This function is the one place "exclude duplicates" actually takes
+    effect - called at export/output time, driven by
+    CollectionParamsRequest.exclude_duplicates_on_export. Articles are
+    still marked (duplicate_group_id, is_duplicate, etc. untouched) even
+    when excluded here; only the returned list is filtered.
+    """
+    if not exclude_duplicates:
+        return articles
+    return [article for article in articles if not article.is_duplicate]
