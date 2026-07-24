@@ -78,7 +78,7 @@ async def run_collection_in_background(collection_id: str, payload: CollectionPa
         )
         normalized_articles = normalize_articles(articles)
         dedup_result = deduplicate_articles(normalized_articles)
-    except Exception as exc:  # noqa: BLE001 - a bug in the orchestrator must not vanish the run
+    except Exception as exc: 
         logger.exception("collection_crashed", extra={"collection_id": collection_id})
         state.status = CollectionStatus.FAILED
         state.error = str(exc)
