@@ -1,9 +1,9 @@
 from datetime import UTC, datetime
+
 import pytest
 
 from app.domain.compliance import enforce_max_articles_per_keyword
 from app.domain.entities import RawArticle, SourceEnum
-
 
 def _article(source: SourceEnum, keyword: str, title: str) -> RawArticle:
     return RawArticle(

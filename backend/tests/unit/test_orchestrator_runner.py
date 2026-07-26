@@ -1,5 +1,6 @@
 import asyncio
 from datetime import UTC, datetime
+
 from app.domain.entities import ConnectorError, RawArticle
 from app.orchestrator.runner import run_collection
 from app.orchestrator.state import create_state
