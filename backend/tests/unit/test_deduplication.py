@@ -1,19 +1,18 @@
-from datetime import datetime, timezone
-
+from datetime import UTC, datetime
 from app.domain.cleaning import normalize_articles
 from app.domain.deduplication import deduplicate_articles, filter_for_export
 from app.domain.entities import RawArticle, SourceEnum
 
-COLLECTED_AT = datetime.now(timezone.utc)
+COLLECTED_AT = datetime.now(UTC)
 
 
 def _raw(**overrides) -> RawArticle:
-    defaults = dict(
-        title="A Title",
-        source=SourceEnum.ARXIV,
-        search_keyword="ai",
-        collection_date=COLLECTED_AT,
-    )
+    defaults = {
+    "title": "A Title",
+    "source": SourceEnum.ARXIV,
+    "search_keyword": "ai",
+    "collection_date": COLLECTED_AT,
+    }   
     defaults.update(overrides)
     return RawArticle(**defaults)
 

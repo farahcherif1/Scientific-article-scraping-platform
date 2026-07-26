@@ -13,8 +13,14 @@ from __future__ import annotations
 import logging
 import time
 from collections.abc import Awaitable, Callable
+
 import httpx
-from tenacity import AsyncRetrying, retry_if_exception, stop_after_attempt, wait_exponential
+from tenacity import (
+    AsyncRetrying,
+    retry_if_exception,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 from app.domain.entities import ConnectorError
 

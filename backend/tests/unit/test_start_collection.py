@@ -1,5 +1,4 @@
-from datetime import datetime, timezone
-
+from datetime import UTC, datetime
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -68,7 +67,7 @@ class _FakeConnector:
                 title=f"{self.source}-{keyword}-{i}",
                 source=self.source,
                 search_keyword=keyword,
-                collection_date=datetime.now(timezone.utc),
+                collection_date=datetime.now(UTC),
             )
             for i in range(n)
         ]

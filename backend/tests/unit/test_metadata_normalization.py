@@ -1,28 +1,27 @@
-from datetime import datetime, timezone
-
+from datetime import UTC, datetime
 from app.domain.cleaning import (
     build_missing_value_report,
+    normalize_abstract,
     normalize_article,
     normalize_articles,
     normalize_author_name,
     normalize_authors,
     normalize_doi,
-    normalize_abstract,
     normalize_title,
     normalize_year,
 )
 from app.domain.entities import RawArticle, SourceEnum
 
-COLLECTED_AT = datetime.now(timezone.utc)
+COLLECTED_AT = datetime.now(UTC)
 
 
 def _raw(**overrides) -> RawArticle:
-    defaults = dict(
-        title="A Title",
-        source=SourceEnum.ARXIV,
-        search_keyword="ai",
-        collection_date=COLLECTED_AT,
-    )
+    defaults = {
+    "title": "A Title",
+    "source": SourceEnum.ARXIV,
+    "search_keyword": "ai",
+    "collection_date": COLLECTED_AT,
+    }
     defaults.update(overrides)
     return RawArticle(**defaults)
 

@@ -59,7 +59,7 @@ class ArticleClean(BaseModel):
     venue: str | None = None
     domain: str | None = None
     categories: list[str] = Field(default_factory=list)
-    citation_count: Optional[int] = None
+    citation_count: int | None = None
 
     source: SourceEnum
     search_keyword: str

@@ -1,6 +1,5 @@
 import asyncio
-from datetime import datetime, timezone
-
+from datetime import UTC, datetime
 from app.domain.entities import ConnectorError, RawArticle
 from app.orchestrator.runner import run_collection
 from app.orchestrator.state import create_state
@@ -11,7 +10,7 @@ def _article(source: str, keyword: str, i: int) -> RawArticle:
         title=f"{source}-{keyword}-{i}",
         source=source,
         search_keyword=keyword,
-        collection_date=datetime.now(timezone.utc),
+        collection_date=datetime.now(UTC),
     )
 
 
