@@ -12,6 +12,8 @@ from app.domain.entities import ConnectorError, RawArticle
 from app.main import app
 from app.orchestrator import state as state_store
 from app.use_cases import start_collection as start_collection_module
+
+
 engine = create_engine(
     "sqlite:///:memory:",
     connect_args={"check_same_thread": False},
