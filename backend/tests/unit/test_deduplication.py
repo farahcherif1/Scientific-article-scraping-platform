@@ -8,12 +8,12 @@ COLLECTED_AT = datetime.now(UTC)
 
 
 def _raw(**overrides) -> RawArticle:
-    defaults = dict(
-        title="A Title",
-        source=SourceEnum.ARXIV,
-        search_keyword="ai",
-        collection_date=COLLECTED_AT,
-    )
+    defaults = {
+    "title": "A Title",
+    "source": SourceEnum.ARXIV,
+    "search_keyword": "ai",
+    "collection_date": COLLECTED_AT,
+    }
     defaults.update(overrides)
     return RawArticle(**defaults)
 
