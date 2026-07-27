@@ -17,8 +17,7 @@ field needs to come back (it's an explicit deliverable in Tâche 3.3).
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 import httpx
 
@@ -56,7 +55,7 @@ class CrossrefConnector(BaseConnector):
     def __init__(
         self,
         *,
-        http_client: Optional[httpx.AsyncClient] = None,
+        http_client: httpx.AsyncClient | None = None,
         rate_limiter=CROSSREF_RATE_LIMITER,
         connect_timeout_s: float = 10.0,
         read_timeout_s: float = 30.0,
@@ -194,7 +193,7 @@ class CrossrefConnector(BaseConnector):
         return RawArticle(
             source=SourceEnum.CROSSREF,
             search_keyword=keyword,
-            collection_date=datetime.now(timezone.utc),
+            collection_date=datetime.now(UTC),
             title=record["title"],
             authors=record["authors"],
             year=record["year"],

@@ -3,15 +3,14 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Optional
 
 from app.domain.entities import RawArticle
 
 
 @dataclass
 class SearchFilters:
-    year_from: Optional[int] = None
-    year_to: Optional[int] = None
+    year_from: int | None = None
+    year_to: int | None = None
 
 
 class BaseConnector(ABC):

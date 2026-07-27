@@ -74,7 +74,7 @@ async def run_collection_in_background(collection_id: str, payload: CollectionPa
             max_articles_per_keyword=payload.max_articles_per_keyword,
             filters=filters,
         )
-    except Exception as exc:  # noqa: BLE001 - a bug in the orchestrator must not vanish the run
+    except Exception as exc:
         logger.exception("collection_crashed", extra={"collection_id": collection_id})
         state.status = CollectionStatus.FAILED
         state.error = str(exc)

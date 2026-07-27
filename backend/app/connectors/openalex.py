@@ -12,13 +12,12 @@ Acceptance criteria implemented:
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 import httpx
 
 from app.connectors.base import BaseConnector, SearchFilters
-from app.domain.entities import ConnectorError, RawArticle, SourceEnum
+from app.domain.entities import RawArticle, SourceEnum
 from app.infra.cache import get_cached, set_cached
 from app.infra.retries import call_with_retry
 from app.orchestrator.rate_limiter import OPENALEX_RATE_LIMITER
@@ -36,7 +35,7 @@ class OpenAlexConnector(BaseConnector):
         self,
         *,
         polite_pool_email: str,
-        http_client: Optional[httpx.AsyncClient] = None,
+        http_client: httpx.AsyncClient | None = None,
         rate_limiter=OPENALEX_RATE_LIMITER,
         connect_timeout_s: float = 10.0,
         read_timeout_s: float = 30.0,
@@ -50,7 +49,7 @@ class OpenAlexConnector(BaseConnector):
         self._client = http_client or httpx.AsyncClient(
             timeout=httpx.Timeout(connect=connect_timeout_s, read=read_timeout_s,
                                    write=read_timeout_s, pool=read_timeout_s),
-            headers={"User-Agent": "Team08-E26-Yonnovia/1.0 (mailto:%s)" % polite_pool_email},
+            headers={"User-Agent": f"Team08-E26-Yonnovia/1.0 (mailto:{polite_pool_email})"},
         )
         self._rate_limiter = rate_limiter
 
@@ -58,7 +57,7 @@ class OpenAlexConnector(BaseConnector):
         self,
         keyword: str,
         max_results: int,
-        filters: Optional[SearchFilters] = None,
+        filters: SearchFilters | None = None,
     ) -> list[RawArticle]:
         filters = filters or SearchFilters()
         cache_params = {
@@ -77,44 +76,40 @@ class OpenAlexConnector(BaseConnector):
         cursor = "*"
         collected = 0
 
-        try:
-            while collected < max_results:
-                page_size = min(DEFAULT_PAGE_SIZE, max_results - collected)
-                params = self._build_params(keyword, filters, cursor, page_size)
+        # Per US-03.4: ConnectorError propagates uncaught here so the
+        # orchestrator can log-and-continue; this source does not swallow
+        # its own failures — that policy belongs to the orchestrator.
+        while collected < max_results:
+            page_size = min(DEFAULT_PAGE_SIZE, max_results - collected)
+            params = self._build_params(keyword, filters, cursor, page_size)
 
-                await self._rate_limiter.acquire()
+            await self._rate_limiter.acquire()
 
-                async def _do_request(p=params):
-                    return await self._client.get(OPENALEX_BASE_URL, params=p)
+            async def _do_request(p=params):
+                return await self._client.get(OPENALEX_BASE_URL, params=p)
 
-                response = await call_with_retry(
-                    _do_request,
-                    source=self.name,
-                    endpoint=OPENALEX_BASE_URL,
-                    keyword=keyword,
-                )
-                payload = response.json()
+            response = await call_with_retry(
+                _do_request,
+                source=self.name,
+                endpoint=OPENALEX_BASE_URL,
+                keyword=keyword,
+            )
+            payload = response.json()
 
-                results = payload.get("results", [])
-                if not results:
+            results = payload.get("results", [])
+            if not results:
+                break
+
+            for record in results:
+                if collected >= max_results:
                     break
+                raw_records.append(record)
+                articles.append(self._map_to_raw_article(record, keyword))
+                collected += 1
 
-                for record in results:
-                    if collected >= max_results:
-                        break
-                    raw_records.append(record)
-                    articles.append(self._map_to_raw_article(record, keyword))
-                    collected += 1
-
-                cursor = payload.get("meta", {}).get("next_cursor")
-                if not cursor:
-                    break  # no more pages
-
-        except ConnectorError:
-            # Per US-03.4: one source failing must not block the others.
-            # Re-raise so the orchestrator can log-and-continue; do NOT
-            # swallow silently here — the orchestrator decides that policy.
-            raise
+            cursor = payload.get("meta", {}).get("next_cursor")
+            if not cursor:
+                break  # no more pages
 
         set_cached(self.name, keyword, cache_params, raw_records)
         return articles
@@ -174,7 +169,7 @@ class OpenAlexConnector(BaseConnector):
         return RawArticle(
             source=SourceEnum.OPENALEX,
             search_keyword=keyword,
-            collection_date=datetime.now(timezone.utc),
+            collection_date=datetime.now(UTC),
             title=record.get("title") or record.get("display_name") or "",
             authors=authors_raw,
             year=record.get("publication_year"),
@@ -187,7 +182,7 @@ class OpenAlexConnector(BaseConnector):
         )
 
     @staticmethod
-    def _reconstruct_abstract(inverted_index: Optional[dict]) -> Optional[str]:
+    def _reconstruct_abstract(inverted_index: dict | None) -> str | None:
         """
         OpenAlex returns abstracts as an inverted index (word -> [positions])
         instead of plain text (contractual quirk of the source). Reconstruct

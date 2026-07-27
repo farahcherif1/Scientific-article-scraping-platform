@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -11,7 +11,7 @@ def _article(source: SourceEnum, keyword: str, title: str) -> RawArticle:
         title=title,
         source=source,
         search_keyword=keyword,
-        collection_date=datetime.now(timezone.utc),
+        collection_date=datetime.now(UTC),
     )
 
 

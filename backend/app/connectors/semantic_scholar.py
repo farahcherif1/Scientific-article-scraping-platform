@@ -15,8 +15,7 @@ configured, for a faster limit — not required to run.
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 import httpx
 
@@ -39,8 +38,8 @@ class SemanticScholarConnector(BaseConnector):
     def __init__(
         self,
         *,
-        api_key: Optional[str] = None,
-        http_client: Optional[httpx.AsyncClient] = None,
+        api_key: str | None = None,
+        http_client: httpx.AsyncClient | None = None,
         rate_limiter=SEMANTIC_SCHOLAR_RATE_LIMITER,
         connect_timeout_s: float = 10.0,
         read_timeout_s: float = 30.0,
@@ -165,7 +164,7 @@ class SemanticScholarConnector(BaseConnector):
         return RawArticle(
             source=SourceEnum.SEMANTIC_SCHOLAR,
             search_keyword=keyword,
-            collection_date=datetime.now(timezone.utc),
+            collection_date=datetime.now(UTC),
             title=record["title"],
             authors=record["authors"],
             year=record["year"],

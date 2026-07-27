@@ -38,9 +38,12 @@ class CollectionParamsRequest(BaseModel):
 
     @model_validator(mode="after")
     def year_range_is_valid(self) -> "CollectionParamsRequest":
-        if self.year_from is not None and self.year_to is not None:
-            if self.year_from > self.year_to:
-                raise ValueError("year_from must not be after year_to.")
+        if (
+            self.year_from is not None
+            and self.year_to is not None
+            and self.year_from > self.year_to
+        ):
+            raise ValueError("year_from must not be after year_to.")
         return self
 
 

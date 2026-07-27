@@ -17,8 +17,7 @@ rate from 3 req/s to 10 req/s but is not required.
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 from xml.etree import ElementTree
 
 import httpx
@@ -43,9 +42,9 @@ class PubMedConnector(BaseConnector):
     def __init__(
         self,
         *,
-        polite_pool_email: Optional[str] = None,
-        api_key: Optional[str] = None,
-        http_client: Optional[httpx.AsyncClient] = None,
+        polite_pool_email: str | None = None,
+        api_key: str | None = None,
+        http_client: httpx.AsyncClient | None = None,
         rate_limiter=PUBMED_RATE_LIMITER,
         connect_timeout_s: float = 10.0,
         read_timeout_s: float = 30.0,
@@ -274,7 +273,7 @@ class PubMedConnector(BaseConnector):
         return RawArticle(
             source=SourceEnum.PUBMED,
             search_keyword=keyword,
-            collection_date=datetime.now(timezone.utc),
+            collection_date=datetime.now(UTC),
             title=record["title"],
             authors=record["authors"],
             year=record["year"],

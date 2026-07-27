@@ -12,7 +12,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Callable, Protocol
+from collections.abc import Callable
+from typing import Protocol
 
 from app.connectors.base import SearchFilters
 from app.domain.compliance import enforce_max_articles_per_keyword

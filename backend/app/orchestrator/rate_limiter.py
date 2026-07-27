@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import asyncio
 import time
-from typing import Optional
 
 from app.config import settings
 
@@ -14,7 +13,7 @@ class AsyncRateLimiter:
     def __init__(self, min_interval_s: float):
         self._min_interval_s = min_interval_s
         self._lock = asyncio.Lock()
-        self._last_call: Optional[float] = None
+        self._last_call: float | None = None
 
     async def acquire(self) -> None:
         async with self._lock:

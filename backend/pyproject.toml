@@ -23,7 +23,7 @@ dev = [
     "pytest>=8.2.0",
     "pytest-asyncio>=0.23.0",
     "pytest-httpx>=0.30.0",
-    "ruff>=0.4.0",
+    "ruff>=0.4.0,<1.0.0",
 ]
 
 [build-system]
@@ -36,6 +36,30 @@ packages = ["app"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+
+[tool.ruff.lint]
+# Pinned to the exact rule codes this codebase already conforms to, rather
+# than relying on ruff's default rule set (which can silently grow across
+# ruff releases and break CI with no code change — see EP-01 CI incident).
+# Base pyflakes/pycodestyle correctness checks plus the specific
+# bugbear/pyupgrade/simplify/tryceratops/comprehensions/ruff-native rules
+# already enforced. Expand deliberately, not implicitly.
+select = [
+    "E4", "E7", "E9", "F",
+    "B008", "C408", "I001", "RUF100",
+    "SIM102", "TRY203", "UP017", "UP031", "UP035", "UP045",
+]
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = [
+    "fastapi.Depends",
+    "fastapi.File",
+    "fastapi.Query",
+    "fastapi.Body",
+    "fastapi.Header",
+    "fastapi.Cookie",
+    "fastapi.Path",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
