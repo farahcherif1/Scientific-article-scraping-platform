@@ -21,6 +21,8 @@ from app.connectors.pubmed import PubMedConnector
 from app.connectors.semantic_scholar import SemanticScholarConnector
 from app.db.models import CollectionRun
 from app.db.session import SessionLocal
+from app.domain.cleaning import normalize_articles
+from app.domain.deduplication import deduplicate_articles
 from app.domain.entities import CollectionStatus
 from app.orchestrator import state as state_store
 from app.orchestrator.runner import run_collection
@@ -74,12 +76,14 @@ async def run_collection_in_background(collection_id: str, payload: CollectionPa
             max_articles_per_keyword=payload.max_articles_per_keyword,
             filters=filters,
         )
+        normalized_articles = normalize_articles(articles)
+        dedup_result = deduplicate_articles(normalized_articles)
     except Exception as exc:
         logger.exception("collection_crashed", extra={"collection_id": collection_id})
         state.status = CollectionStatus.FAILED
         state.error = str(exc)
         state.mark_finished()
-        _persist_final_state(collection_id, state, article_count=0)
+        _persist_final_state(collection_id, state, article_count=0, duplicate_count=0)
         return
 
     if state.abort_requested:
@@ -92,16 +96,28 @@ async def run_collection_in_background(collection_id: str, payload: CollectionPa
         state.status = CollectionStatus.COMPLETED
 
     state.mark_finished()
-    _persist_final_state(collection_id, state, article_count=len(articles))
+    _persist_final_state(
+        collection_id,
+        state,
+        article_count=len(articles),
+        duplicate_count=dedup_result.duplicate_count,
+    )
 
 
-def _persist_final_state(collection_id: str, state: state_store.CollectionState, *, article_count: int) -> None:
+def _persist_final_state(
+    collection_id: str,
+    state: state_store.CollectionState,
+    *,
+    article_count: int,
+    duplicate_count: int = 0,
+) -> None:
     db = SESSION_FACTORY()
     try:
         run = db.get(CollectionRun, _numeric_id(collection_id))
         if run is not None:
             run.status = state.status
             run.article_count = article_count
+            run.duplicate_count = duplicate_count
             db.commit()
     finally:
         db.close()
