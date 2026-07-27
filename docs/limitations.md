@@ -154,9 +154,10 @@
   full design, the API research behind the config schema (IEEE Xplore, HAL,
   DOAJ, CORE, Europe PMC), and explicit scope limits (JSON only, no OAuth,
   one request per page, no field-level transforms beyond dot-path
-  extraction, no secrets vault — API keys round-trip in plaintext through
-  the management API). Notable scope/behavior changes this required in
-  shared code:
+  extraction, no secrets vault — API keys are stored as plaintext on disk,
+  though a security review before merge caught and fixed two issues so they
+  are never returned in plaintext or usable for SSRF, see below). Notable
+  scope/behavior changes this required in shared code:
   - `RawArticle.source` / `ArticleClean.source` / `ConnectorError.source`
     widened from `SourceEnum` to `str` (`app/domain/entities.py`) so a
     custom connector's slug can flow through the same pipeline as the 5
@@ -185,3 +186,32 @@
     call the backend and offers no guarantee of correctness; "test
     connection" against the real source is still the only way to confirm a
     mapping actually works.
+  - **Two findings from a pre-merge security review were fixed, not just
+    documented**, since `base_url`/auth are entirely researcher-supplied and
+    every endpoint in this app (custom connectors included) has no auth of
+    its own:
+    1. Unauthenticated SSRF: `base_url` had no restriction beyond the
+       `http(s)://` scheme, and `POST /custom-connectors/test` reflected the
+       full raw response back to the caller — anyone reaching this backend
+       could point it at the cloud metadata address or any internal
+       service. Fixed with a two-layer host check: literal private/loopback/
+       link-local IPs rejected at config-save time
+       (`CustomConnectorConfig`'s validator, `app/connectors/generic_config.py::is_unsafe_ip`,
+       no DNS needed), and a hostname that *resolves* to one of those ranges
+       rejected at request time, before every `search()`/`test_connection()`/
+       `health_check()` call (`app/connectors/generic.py::default_host_guard`,
+       re-resolved per call rather than trusted from save time, to cover DNS
+       rebinding). Does not protect against a public host that itself proxies
+       to internal services, or a redirect chain (`GenericConnector` doesn't
+       follow redirects, so that specific vector doesn't apply either).
+       Covered by `test_generic_connector_ssrf.py`.
+    2. Plaintext API key exposure: `GET /custom-connectors` and `.../{slug}`
+       returned the full stored config, including `auth.key_value`, to any
+       caller. Fixed by redacting `key_value` to `null` in every response and
+       adding `auth_key_configured: bool` instead
+       (`app/api/v1/custom_connectors.py::_to_response`); since the real value
+       never comes back, a blank `key_value` on `PUT` now means "keep the
+       existing key" rather than "clear it" (only switching `auth.type` to
+       `none` clears it) — `app/use_cases/manage_custom_connectors.py::update_custom_connector`.
+       Covered by the redaction/preserve/replace/clear tests in
+       `test_custom_connectors.py`.

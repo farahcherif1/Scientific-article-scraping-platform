@@ -20,6 +20,13 @@ class CustomConnectorResponse(BaseModel):
     """The connector's slug - what appears in `CollectionParamsRequest.sources`."""
     name: str
     config: CustomConnectorConfig
+    """
+    `config.auth.key_value` is always redacted to `None` here (security
+    review finding: this endpoint has no auth, so returning a stored
+    third-party API key in plaintext would let anyone who can reach the
+    backend read it). See `auth_key_configured` for whether one is on file.
+    """
+    auth_key_configured: bool
     enabled: bool
     created_by: str | None
     created_at: datetime

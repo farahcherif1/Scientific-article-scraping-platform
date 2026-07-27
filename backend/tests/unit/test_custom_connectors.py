@@ -55,6 +55,21 @@ def _reset_db():
         Base.metadata.drop_all(bind=engine)
 
 
+@pytest.fixture(autouse=True)
+def _resolve_placeholder_hostnames_to_a_public_ip(monkeypatch):
+    """
+    These tests exercise the real endpoints end-to-end, so requests go
+    through the real SSRF guard (`default_host_guard`), DNS resolution
+    included - unlike test_generic_connector.py, which injects a no-op guard
+    directly. `api.example.org` has no real DNS record, so resolve it (and
+    anything else) to a public IP here rather than depending on real
+    network access in a unit test.
+    """
+    monkeypatch.setattr(
+        "socket.getaddrinfo", lambda host, port: [(2, 1, 6, "", ("93.184.216.34", 0))]
+    )
+
+
 def _valid_config(**overrides) -> dict:
     config = {
         "base_url": "https://api.example.org/search",
@@ -162,6 +177,142 @@ def test_invalid_config_is_rejected_with_422():
         json={"name": "Bad", "config": _valid_config(base_url="not-a-url"), "enabled": True},
     )
     assert response.status_code == 422
+
+
+def test_literal_private_ip_in_base_url_is_rejected_with_422():
+    response = client.post(
+        "/api/v1/custom-connectors",
+        json={
+            "name": "SSRF Attempt",
+            "config": _valid_config(base_url="http://169.254.169.254/latest/meta-data/"),
+            "enabled": True,
+        },
+    )
+    assert response.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# API key redaction (security review finding: this endpoint has no auth, so
+# a stored third-party API key must never round-trip out through it)
+# ---------------------------------------------------------------------------
+
+
+def test_created_connector_response_never_contains_the_raw_api_key():
+    response = client.post(
+        "/api/v1/custom-connectors",
+        json={
+            "name": "IEEE Xplore",
+            "config": _valid_config(
+                auth={"type": "api_key_header", "key_name": "Authorization", "key_value": "Bearer super-secret"}
+            ),
+            "enabled": True,
+        },
+    )
+    body = response.json()
+    assert body["auth_key_configured"] is True
+    assert body["config"]["auth"]["key_value"] is None
+    assert "super-secret" not in response.text
+
+
+def test_get_and_list_also_redact_the_key():
+    client.post(
+        "/api/v1/custom-connectors",
+        json={
+            "name": "IEEE Xplore",
+            "config": _valid_config(
+                auth={"type": "api_key_header", "key_name": "Authorization", "key_value": "Bearer super-secret"}
+            ),
+            "enabled": True,
+        },
+    )
+    get_response = client.get("/api/v1/custom-connectors/ieee_xplore")
+    list_response = client.get("/api/v1/custom-connectors")
+    assert "super-secret" not in get_response.text
+    assert "super-secret" not in list_response.text
+    assert get_response.json()["auth_key_configured"] is True
+    assert list_response.json()["data"][0]["auth_key_configured"] is True
+
+
+def test_updating_with_a_blank_key_preserves_the_stored_key():
+    client.post(
+        "/api/v1/custom-connectors",
+        json={
+            "name": "IEEE Xplore",
+            "config": _valid_config(
+                auth={"type": "api_key_header", "key_name": "Authorization", "key_value": "Bearer super-secret"}
+            ),
+            "enabled": True,
+        },
+    )
+
+    # Simulates the wizard round-trip: GET returns key_value=None (redacted),
+    # the researcher changes an unrelated field and saves without touching
+    # the key input, so PUT is sent with key_value still blank.
+    update_response = client.put(
+        "/api/v1/custom-connectors/ieee_xplore",
+        json={
+            "name": "IEEE Xplore",
+            "config": _valid_config(
+                rate_limit_rps=5,
+                auth={"type": "api_key_header", "key_name": "Authorization", "key_value": None},
+            ),
+            "enabled": True,
+        },
+    )
+    assert update_response.status_code == 200
+    assert update_response.json()["config"]["rate_limit_rps"] == 5
+
+    with TestingSessionLocal() as db:
+        row = db.query(CustomConnector).filter_by(slug="ieee_xplore").first()
+        assert row.config["auth"]["key_value"] == "Bearer super-secret"
+
+
+def test_updating_with_a_new_key_replaces_the_stored_key():
+    client.post(
+        "/api/v1/custom-connectors",
+        json={
+            "name": "IEEE Xplore",
+            "config": _valid_config(
+                auth={"type": "api_key_header", "key_name": "Authorization", "key_value": "Bearer old-secret"}
+            ),
+            "enabled": True,
+        },
+    )
+    client.put(
+        "/api/v1/custom-connectors/ieee_xplore",
+        json={
+            "name": "IEEE Xplore",
+            "config": _valid_config(
+                auth={"type": "api_key_header", "key_name": "Authorization", "key_value": "Bearer new-secret"}
+            ),
+            "enabled": True,
+        },
+    )
+
+    with TestingSessionLocal() as db:
+        row = db.query(CustomConnector).filter_by(slug="ieee_xplore").first()
+        assert row.config["auth"]["key_value"] == "Bearer new-secret"
+
+
+def test_switching_auth_type_to_none_clears_the_stored_key():
+    client.post(
+        "/api/v1/custom-connectors",
+        json={
+            "name": "IEEE Xplore",
+            "config": _valid_config(
+                auth={"type": "api_key_header", "key_name": "Authorization", "key_value": "Bearer super-secret"}
+            ),
+            "enabled": True,
+        },
+    )
+    client.put(
+        "/api/v1/custom-connectors/ieee_xplore",
+        json={"name": "IEEE Xplore", "config": _valid_config(auth={"type": "none"}), "enabled": True},
+    )
+
+    with TestingSessionLocal() as db:
+        row = db.query(CustomConnector).filter_by(slug="ieee_xplore").first()
+        assert row.config["auth"]["key_value"] is None
 
 
 # ---------------------------------------------------------------------------

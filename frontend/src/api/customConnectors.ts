@@ -64,7 +64,10 @@ export interface CustomConnectorConfig {
 export interface CustomConnectorResponse {
   id: string;
   name: string;
+  /** `config.auth.key_value` is always null here - the backend never returns a stored key. */
   config: CustomConnectorConfig;
+  /** Whether an API key is on file, since `config.auth.key_value` itself is redacted. */
+  auth_key_configured: boolean;
   enabled: boolean;
   created_by: string | null;
   created_at: string;

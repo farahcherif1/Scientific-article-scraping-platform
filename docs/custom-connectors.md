@@ -90,9 +90,28 @@ exercised end-to-end against mocked fixtures.
   authors - a real Europe PMC connector would need custom string-splitting logic this config
   format doesn't offer.
 - **No secrets vault.** `auth.key_value` is stored as plaintext JSON in the `custom_connectors`
-  table and is returned as plaintext by `GET /api/v1/custom-connectors/{slug}` and the list
-  endpoint - anyone who can call the management API can read it. Fine for a single-team MVP;
-  revisit before this is exposed beyond a trusted internal user base.
+  table (fine for a single-team MVP; revisit before this is exposed beyond a trusted internal
+  user base). It is **not**, however, ever returned by the management API: `GET
+  /api/v1/custom-connectors` and `.../{slug}` redact `config.auth.key_value` to `null` and expose
+  only `auth_key_configured: bool` instead (security review finding - this endpoint has no auth,
+  so a stored third-party API key must never round-trip out through it in plaintext). The wizard
+  shows "an API key is already saved - leave blank to keep it" rather than the real value on
+  edit; leaving the key field blank on save preserves the existing key (only switching auth to
+  "No authentication" clears it) - see `app/use_cases/manage_custom_connectors.py::update_custom_connector`.
+  "Test connection" is unaffected by redaction (it's a stateless, non-persisted call using
+  whatever is currently typed in the form), but note: when editing a connector with a saved key,
+  testing *with that key* requires re-entering it - the wizard can't test with a secret it was
+  never given back.
+- **`base_url` is checked against SSRF, but only for network destinations, not paths.** Since
+  `base_url` is entirely researcher-supplied and the backend makes live outbound requests to it
+  (including from the unauthenticated `/custom-connectors/test` endpoint, which reflects the raw
+  response back to the caller), a literal private/loopback/link-local/cloud-metadata IP is
+  rejected at save time (`CustomConnectorConfig`'s validator, no DNS needed), and a hostname that
+  *resolves* to one of those ranges is rejected at request time (`app.connectors.generic.default_host_guard`,
+  called before every `search()`/`test_connection()`/`health_check()` - this also covers DNS
+  rebinding, since it re-resolves on every call rather than trusting the save-time check). This
+  does not protect against a public host that itself proxies to internal services, or non-IP-based
+  SSRF vectors (e.g. a redirect chain - `GenericConnector` does not follow redirects).
 - **No automatic polite-pool identification beyond `User-Agent`.** Built-in connectors send
   `mailto=` because their code adds it explicitly; a custom connector only gets a `User-Agent`
   header by default. If the source's usage policy requires a `mailto` param, add it yourself

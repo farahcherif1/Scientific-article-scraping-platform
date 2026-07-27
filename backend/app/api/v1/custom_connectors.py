@@ -26,10 +26,19 @@ router = APIRouter(prefix="/custom-connectors", tags=["custom-connectors"])
 
 
 def _to_response(row) -> CustomConnectorResponse:
+    config = CustomConnectorConfig.model_validate(row.config)
+    auth_key_configured = bool(config.auth.key_value)
+    # This endpoint has no auth (same as every other endpoint in this app -
+    # see docs/limitations.md), so a stored third-party API key must never
+    # round-trip out through it in plaintext.
+    redacted_config = config.model_copy(
+        update={"auth": config.auth.model_copy(update={"key_value": None})}
+    )
     return CustomConnectorResponse(
         id=row.slug,
         name=row.name,
-        config=CustomConnectorConfig.model_validate(row.config),
+        config=redacted_config,
+        auth_key_configured=auth_key_configured,
         enabled=row.enabled,
         created_by=row.created_by,
         created_at=row.created_at,

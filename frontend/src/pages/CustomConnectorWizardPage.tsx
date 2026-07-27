@@ -140,6 +140,7 @@ export default function CustomConnectorWizardPage() {
   const [authType, setAuthType] = useState<AuthType>("none");
   const [authKeyName, setAuthKeyName] = useState("");
   const [authKeyValue, setAuthKeyValue] = useState("");
+  const [hasStoredAuthKey, setHasStoredAuthKey] = useState(false);
   const [keywordParam, setKeywordParam] = useState("");
   const [yearFromParam, setYearFromParam] = useState("");
   const [yearToParam, setYearToParam] = useState("");
@@ -228,6 +229,7 @@ export default function CustomConnectorWizardPage() {
       .then((row) => {
         setName(row.name);
         setEnabled(row.enabled);
+        setHasStoredAuthKey(row.auth_key_configured);
         applyConfig(row.config);
       })
       .catch((err) => setLoadError(err instanceof Error ? err.message : "Could not load this custom source."))
@@ -512,9 +514,18 @@ export default function CustomConnectorWizardPage() {
                         value={authKeyValue}
                         onChange={(e) => setAuthKeyValue(e.target.value)}
                         type="password"
-                        placeholder="Paste the key or token"
+                        placeholder={
+                          hasStoredAuthKey ? "Leave blank to keep the saved key" : "Paste the key or token"
+                        }
                         className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                       />
+                      {hasStoredAuthKey && (
+                        <p className="mt-1 text-xs text-slate-400">
+                          An API key is already saved for this source (never shown again for
+                          security) - leave this blank to keep it, or enter a new value to
+                          replace it. Testing with the saved key requires re-entering it here.
+                        </p>
+                      )}
                     </div>
                   </div>
                 )}

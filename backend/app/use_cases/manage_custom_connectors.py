@@ -11,6 +11,7 @@ import re
 from sqlalchemy.orm import Session
 
 from app.connectors.generic import GenericConnector
+from app.connectors.generic_config import AuthType, CustomConnectorConfig
 from app.db.models import CustomConnector
 from app.domain.entities import ConnectorError
 from app.schemas.collections import SourceId
@@ -83,11 +84,33 @@ def create_custom_connector(
 def update_custom_connector(
     db: Session, slug: str, payload: CustomConnectorCreateRequest
 ) -> CustomConnector | None:
+    """
+    `GET`/list responses never return a stored API key (security review
+    finding - see `app/api/v1/custom_connectors.py::_to_response`), so the
+    wizard has no real value to send back on an edit that doesn't touch
+    auth. Without this, re-saving unrelated changes would silently wipe the
+    stored key. A blank `key_value` on update means "leave it as-is", not
+    "clear it" - the only way to actually remove a key is to switch
+    `auth.type` to `none`.
+    """
     row = get_custom_connector(db, slug)
     if row is None:
         return None
+
+    new_config = payload.config
+    if new_config.auth.type != AuthType.NONE and not new_config.auth.key_value:
+        existing_config = CustomConnectorConfig.model_validate(row.config)
+        if existing_config.auth.type == new_config.auth.type and existing_config.auth.key_value:
+            new_config = new_config.model_copy(
+                update={
+                    "auth": new_config.auth.model_copy(
+                        update={"key_value": existing_config.auth.key_value}
+                    )
+                }
+            )
+
     row.name = payload.name
-    row.config = payload.config.model_dump(mode="json")
+    row.config = new_config.model_dump(mode="json")
     row.enabled = payload.enabled
     db.commit()
     db.refresh(row)

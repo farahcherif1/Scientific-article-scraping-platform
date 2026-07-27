@@ -25,10 +25,14 @@ Reuses the same shared infrastructure the built-in connectors use:
 """
 from __future__ import annotations
 
+import ipaddress
 import logging
 import re
+import socket
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
 
@@ -39,9 +43,10 @@ from app.connectors.generic_config import (
     AuthType,
     CustomConnectorConfig,
     PaginationStyle,
+    is_unsafe_ip,
     resolve_path,
 )
-from app.domain.entities import RawArticle
+from app.domain.entities import ConnectorError, RawArticle
 from app.infra.retries import call_with_retry
 from app.orchestrator.rate_limiter import AsyncRateLimiter
 
@@ -52,6 +57,44 @@ logger = logging.getLogger("app.connectors.generic")
 # that never terminates (e.g. next_cursor_path pointing at a field that
 # never goes empty). Compliance's own 100-article cap makes this generous.
 _MAX_PAGES_PER_SEARCH = 25
+
+HostGuard = Callable[[str], None]
+
+
+class SSRFBlockedError(Exception):
+    """Raised by a `HostGuard` when a URL resolves to a disallowed address."""
+
+
+def default_host_guard(url: str) -> None:
+    """
+    SSRF guard (security review finding, EP-custom-connectors): `base_url` is
+    entirely researcher-supplied, so without this a custom connector could be
+    pointed at the cloud metadata address, loopback, or any other internal
+    service reachable from this backend - and the "test connection" endpoint
+    (unauthenticated, same as every other endpoint in this app) would reflect
+    that response straight back to whoever called it.
+
+    `CustomConnectorConfig`'s validator already rejects a *literal* private IP
+    at save time (no DNS needed for that). This does the same check again
+    at request time, after resolving the hostname - defending against a
+    hostname that resolves to a public IP when saved but a private one later
+    (DNS rebinding), at the cost of one resolution per `search()`/
+    `test_connection()` call (not per paginated page).
+    """
+    hostname = urlparse(url).hostname
+    if not hostname:
+        raise SSRFBlockedError(f"URL has no hostname: {url}")
+    try:
+        addr_infos = socket.getaddrinfo(hostname, None)
+    except socket.gaierror as exc:
+        raise SSRFBlockedError(f"Could not resolve host '{hostname}'.") from exc
+    for *_, sockaddr in addr_infos:
+        ip = ipaddress.ip_address(sockaddr[0])
+        if is_unsafe_ip(ip):
+            raise SSRFBlockedError(
+                f"'{hostname}' resolves to {ip}, a private/internal address this "
+                "platform refuses to contact."
+            )
 
 
 class GenericConnector(BaseConnector):
@@ -70,6 +113,7 @@ class GenericConnector(BaseConnector):
         http_client: httpx.AsyncClient | None = None,
         rate_limiter: AsyncRateLimiter | None = None,
         polite_pool_email: str | None = None,
+        host_guard: HostGuard | None = None,
     ):
         self.name = slug
         self._config = config
@@ -83,6 +127,22 @@ class GenericConnector(BaseConnector):
             ),
         )
         self._rate_limiter = rate_limiter or AsyncRateLimiter(1 / config.rate_limit_rps)
+        # Injectable so tests can pass a no-op instead of doing real DNS
+        # resolution (see test_generic_connector.py) - production code always
+        # gets the real check.
+        self._host_guard = host_guard or default_host_guard
+
+    def _assert_host_is_allowed(self, keyword: str) -> None:
+        try:
+            self._host_guard(self._config.base_url)
+        except SSRFBlockedError as exc:
+            raise ConnectorError(
+                source=self.name,
+                endpoint=self._config.base_url,
+                keyword=keyword,
+                error_class="SSRFBlocked",
+                message=str(exc),
+            ) from exc
 
     async def search(
         self,
@@ -90,6 +150,7 @@ class GenericConnector(BaseConnector):
         max_results: int,
         filters: SearchFilters | None = None,
     ) -> list[RawArticle]:
+        self._assert_host_is_allowed(keyword)
         filters = filters or SearchFilters()
         pagination = self._config.pagination
 
@@ -167,6 +228,7 @@ class GenericConnector(BaseConnector):
         failure, same as `search()` (the API layer turns that into a
         `success: false` response instead of a 500).
         """
+        self._assert_host_is_allowed(keyword)
         page_size = min(self._config.pagination.page_size, max_results)
         params = self._build_params(
             keyword,
@@ -290,6 +352,7 @@ class GenericConnector(BaseConnector):
 
     async def health_check(self) -> bool:
         try:
+            self._host_guard(self._config.base_url)
             params = self._build_params(
                 "test",
                 SearchFilters(),
@@ -308,7 +371,7 @@ class GenericConnector(BaseConnector):
                     self._config.base_url, params=params, headers=headers
                 )
             return response.status_code == 200
-        except httpx.HTTPError:
+        except (httpx.HTTPError, SSRFBlockedError):
             return False
 
     async def aclose(self) -> None:

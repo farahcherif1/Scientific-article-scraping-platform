@@ -20,9 +20,11 @@ mappers - see the worked examples in each function's docstring.
 """
 from __future__ import annotations
 
+import ipaddress
 import re
 from enum import StrEnum
 from typing import Any
+from urllib.parse import urlparse
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -195,6 +197,37 @@ class CustomConnectorConfig(BaseModel):
     @field_validator("base_url")
     @classmethod
     def _base_url_looks_like_url(cls, v: str) -> str:
-        if not re.match(r"^https?://", v.strip(), re.IGNORECASE):
+        v = v.strip()
+        if not re.match(r"^https?://", v, re.IGNORECASE):
             raise ValueError("base_url must start with http:// or https://")
-        return v.strip()
+        hostname = urlparse(v).hostname
+        if hostname:
+            try:
+                literal_ip = ipaddress.ip_address(hostname)
+            except ValueError:
+                pass  # not a literal IP - a hostname is re-checked (post-DNS) at request time
+            else:
+                if is_unsafe_ip(literal_ip):
+                    raise ValueError(
+                        f"base_url resolves to {literal_ip}, a private/internal address this "
+                        "platform refuses to contact."
+                    )
+        return v
+
+
+def is_unsafe_ip(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    """
+    SSRF guard shared by the config validator (literal IPs, no DNS needed) and
+    `app.connectors.generic`'s request-time check (hostnames, post-resolution)
+    - a custom connector's `base_url` is entirely researcher-supplied, so
+    without this a request could be pointed at the cloud metadata address,
+    loopback, or any other internal-only service reachable from the backend.
+    """
+    return (
+        ip.is_private
+        or ip.is_loopback
+        or ip.is_link_local
+        or ip.is_multicast
+        or ip.is_reserved
+        or ip.is_unspecified
+    )

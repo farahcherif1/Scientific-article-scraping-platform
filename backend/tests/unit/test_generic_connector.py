@@ -29,8 +29,20 @@ class _NoopRateLimiter:
         return None
 
 
+def _noop_host_guard(url: str) -> None:
+    """
+    These tests use real-looking hostnames (api.core.ac.uk, etc.) purely as
+    fixtures for mocked HTTP calls - real DNS resolution has no place in a
+    unit test. The SSRF guard itself (`default_host_guard`) is covered
+    separately in test_generic_connector_ssrf.py.
+    """
+    return None
+
+
 def _make_connector(config: CustomConnectorConfig, slug: str = "custom_test") -> GenericConnector:
-    return GenericConnector(slug=slug, config=config, rate_limiter=_NoopRateLimiter())
+    return GenericConnector(
+        slug=slug, config=config, rate_limiter=_NoopRateLimiter(), host_guard=_noop_host_guard
+    )
 
 
 # ---------------------------------------------------------------------------
