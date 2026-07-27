@@ -81,15 +81,15 @@ class ConnectorError(Exception):
     (US-03.4: one source failing must not block the others).
     """
 
-def __init__(
-    self,
-    *,
-    source: SourceEnum,
-    endpoint: str,
-    keyword: str,
-    error_class: str,
-    message: str,
-):
+    def __init__(
+        self,
+        *,
+        source: SourceEnum,
+        endpoint: str,
+        keyword: str,
+        error_class: str,
+        message: str,
+    ):
         self.source = source
         self.endpoint = endpoint
         self.keyword = keyword
