@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   Globe,
@@ -12,19 +12,25 @@ import {
   Play,
   Languages,
   Tag,
+  Pencil,
+  Activity,
+  XCircle,
+  Loader2,
 } from "lucide-react";
 import TopNav from "../components/TopNav";
 import Toggle from "../components/Toggle";
 import { startCollection } from "../api/collections";
+import { checkCustomConnectorHealth, listCustomConnectors } from "../api/customConnectors";
 
 interface SourceMeta {
   id: string;
   name: string;
   description: string;
   defaultChecked: boolean;
+  custom?: boolean;
 }
 
-const SOURCES: SourceMeta[] = [
+const BUILTIN_SOURCES: SourceMeta[] = [
   {
     id: "arxiv",
     name: "arXiv",
@@ -64,14 +70,57 @@ function clamp(n: number): number {
   return Math.min(100, Math.max(10, n));
 }
 
+type HealthState = "unknown" | "checking" | "healthy" | "unhealthy";
+
 export default function ConfigurePage() {
   const navigate = useNavigate();
   const location = useLocation();
   const keywords: string[] = (location.state as { keywords?: string[] } | null)?.keywords ?? [];
 
+  const [customSources, setCustomSources] = useState<SourceMeta[]>([]);
+  const [customHealth, setCustomHealth] = useState<Record<string, HealthState>>({});
+  const sources = useMemo(() => [...BUILTIN_SOURCES, ...customSources], [customSources]);
+
   const [selectedSources, setSelectedSources] = useState<Record<string, boolean>>(
-    Object.fromEntries(SOURCES.map((s) => [s.id, s.defaultChecked]))
+    Object.fromEntries(BUILTIN_SOURCES.map((s) => [s.id, s.defaultChecked]))
   );
+
+  useEffect(() => {
+    listCustomConnectors()
+      .then((response) => {
+        const enabled = response.data.filter((c) => c.enabled);
+        const asSources: SourceMeta[] = enabled.map((c) => ({
+          id: c.id,
+          name: c.name,
+          description: c.config.base_url,
+          // Opt-in default, same reasoning as PubMed/Semantic Scholar: a
+          // newly added source shouldn't silently change what an existing
+          // collection setup fetches.
+          defaultChecked: false,
+          custom: true,
+        }));
+        setCustomSources(asSources);
+        setSelectedSources((prev) => ({
+          ...Object.fromEntries(asSources.map((s) => [s.id, false])),
+          ...prev,
+        }));
+      })
+      .catch(() => {
+        // Custom sources are additive - if they fail to load, the built-in
+        // checklist still works, so this is silent rather than blocking.
+      });
+  }, []);
+
+  async function handleCheckHealth(id: string) {
+    setCustomHealth((prev) => ({ ...prev, [id]: "checking" }));
+    try {
+      const result = await checkCustomConnectorHealth(id);
+      setCustomHealth((prev) => ({ ...prev, [id]: result.healthy ? "healthy" : "unhealthy" }));
+    } catch {
+      setCustomHealth((prev) => ({ ...prev, [id]: "unhealthy" }));
+    }
+  }
+
   const [maxArticles, setMaxArticles] = useState(50);
   const [yearFrom, setYearFrom] = useState("2018");
   const [yearTo, setYearTo] = useState("2024");
@@ -160,8 +209,9 @@ export default function ConfigurePage() {
               </div>
 
               <div className="mt-4 flex flex-col gap-3 border-t border-slate-100 pt-4">
-                {SOURCES.map((source) => {
+                {sources.map((source) => {
                   const checked = selectedSources[source.id];
+                  const healthState = customHealth[source.id] ?? "unknown";
                   return (
                     <div
                       key={source.id}
@@ -177,14 +227,59 @@ export default function ConfigurePage() {
                       >
                         {checked && <Check className="h-3.5 w-3.5 text-white" />}
                       </span>
-                      <div>
-                        <span className="font-semibold text-slate-900">{source.name}</span>
-                        <p className="mt-0.5 text-sm text-slate-500">{source.description}</p>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-slate-900">{source.name}</span>
+                          {source.custom && (
+                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
+                              Custom
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-0.5 truncate text-sm text-slate-500">{source.description}</p>
                       </div>
+                      {source.custom && (
+                        <div
+                          className="flex shrink-0 items-center gap-1"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            type="button"
+                            title="Check connection health"
+                            onClick={() => handleCheckHealth(source.id)}
+                            className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 hover:bg-slate-50"
+                          >
+                            {healthState === "checking" ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400" />
+                            ) : healthState === "healthy" ? (
+                              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                            ) : healthState === "unhealthy" ? (
+                              <XCircle className="h-3.5 w-3.5 text-rose-500" />
+                            ) : (
+                              <Activity className="h-3.5 w-3.5 text-slate-300" />
+                            )}
+                          </button>
+                          <button
+                            type="button"
+                            title="Edit this custom source"
+                            onClick={() => navigate(`/sources/custom/${source.id}/edit`)}
+                            className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 hover:bg-slate-50"
+                          >
+                            <Pencil className="h-3.5 w-3.5 text-slate-500" />
+                          </button>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
               </div>
+              <button
+                type="button"
+                onClick={() => navigate("/sources/custom/new")}
+                className="mt-3 text-sm font-medium text-emerald-700 hover:underline"
+              >
+                + Add a custom source
+              </button>
             </div>
 
             {/* Date range */}

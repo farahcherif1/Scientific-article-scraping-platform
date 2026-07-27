@@ -18,6 +18,7 @@ from app.connectors.base import SearchFilters
 from app.connectors.crossref import CrossrefConnector
 from app.connectors.openalex import OpenAlexConnector
 from app.connectors.pubmed import PubMedConnector
+from app.connectors.registry import load_custom_connector_factories
 from app.connectors.semantic_scholar import SemanticScholarConnector
 from app.db.models import CollectionRun
 from app.db.session import SessionLocal
@@ -51,7 +52,7 @@ def create_collection_run(
     db: Session, payload: CollectionParamsRequest
 ) -> tuple[str, state_store.CollectionState]:
     """Persists the initial DB row and in-memory progress state. Does not start the run."""
-    sources = [source.value for source in payload.sources]
+    sources = list(payload.sources)
     run = CollectionRun(keywords=payload.keywords, sources=sources, status=CollectionStatus.RUNNING)
     db.add(run)
     db.commit()
@@ -70,9 +71,10 @@ async def run_collection_in_background(collection_id: str, payload: CollectionPa
     filters = SearchFilters(year_from=payload.year_from, year_to=payload.year_to)
 
     try:
+        factories = {**CONNECTOR_FACTORIES, **_load_custom_factories()}
         articles = await run_collection(
             state,
-            connector_factories=CONNECTOR_FACTORIES,
+            connector_factories=factories,
             max_articles_per_keyword=payload.max_articles_per_keyword,
             filters=filters,
         )
@@ -102,6 +104,19 @@ async def run_collection_in_background(collection_id: str, payload: CollectionPa
         article_count=len(articles),
         duplicate_count=dedup_result.duplicate_count,
     )
+
+
+def _load_custom_factories() -> dict[str, object]:
+    """
+    BackgroundTasks run outside request scope (see SESSION_FACTORY note
+    above), so loading enabled custom connectors needs its own short-lived
+    session, same as `_persist_final_state`.
+    """
+    db = SESSION_FACTORY()
+    try:
+        return load_custom_connector_factories(db)
+    finally:
+        db.close()
 
 
 def _persist_final_state(

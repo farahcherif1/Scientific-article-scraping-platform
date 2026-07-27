@@ -138,3 +138,50 @@
   Vitest/RTL/Playwright set up yet in this repo despite being in the
   intended stack) — only via direct HTTP calls matching the frontend's own
   request/response contract.
+- **Vitest + React Testing Library are now set up** (`frontend/package.json`,
+  `frontend/vite.config.ts`'s `test` block, `frontend/src/setupTests.ts`),
+  closing the gap noted just above. `npm test` runs the suite (`vitest run`).
+  Only the custom-connector wizard and the pure `jsonPathSuggest` helper have
+  tests so far — the rest of the frontend (`ConfigurePage`, `CollectionPage`,
+  etc.) still has none.
+- **Custom Connectors (EP-custom-connectors) are implemented**: a
+  config-driven `GenericConnector` (`app/connectors/generic.py` +
+  `generic_config.py`) lets a researcher add a JSON-based scientific source
+  outside the 5 built-ins through `/sources/custom/new`, persisted in a new
+  `custom_connectors` table and merged into the orchestrator's
+  `connector_factories` dict alongside the built-ins
+  (`app/connectors/registry.py`) — see `docs/custom-connectors.md` for the
+  full design, the API research behind the config schema (IEEE Xplore, HAL,
+  DOAJ, CORE, Europe PMC), and explicit scope limits (JSON only, no OAuth,
+  one request per page, no field-level transforms beyond dot-path
+  extraction, no secrets vault — API keys round-trip in plaintext through
+  the management API). Notable scope/behavior changes this required in
+  shared code:
+  - `RawArticle.source` / `ArticleClean.source` / `ConnectorError.source`
+    widened from `SourceEnum` to `str` (`app/domain/entities.py`) so a
+    custom connector's slug can flow through the same pipeline as the 5
+    built-in sources. `SourceEnum` members are `StrEnum`, so this is a
+    type-widening, not a behavior change, for the 5 built-in connectors.
+  - `CollectionParamsRequest.sources` widened from `list[SourceId]` to
+    `list[str]` (`app/schemas/collections.py`) — a request naming an
+    unregistered source string (typo, or a since-deleted custom connector)
+    is no longer a 422; it now reaches `POST /collections` and is reported
+    as a failed source in `GET /collections/{id}/progress`, same as the
+    orchestrator already does for any other unregistered source
+    (`test_unregistered_source_is_marked_failed_without_blocking_others` in
+    `test_orchestrator_runner.py`; see the renamed
+    `test_unregistered_source_string_is_accepted_and_reported_as_a_failed_source`
+    in `test_start_collection.py`).
+  - Only the 5 built-in connector *files* were left untouched, per the
+    constraint this feature was built under — `app/domain/entities.py` and
+    `app/schemas/collections.py` (shared glue, not connector-specific code)
+    were widened as described above.
+  - The custom-connectors table has no Alembic migration yet, same
+    `Base.metadata.create_all()` MVP tradeoff already noted for
+    `collection_runs` above.
+  - The "paste example JSON, suggest field paths" wizard helper
+    (`frontend/src/lib/jsonPathSuggest.ts`) is a plain keyword-matching
+    heuristic over the pasted sample's flattened field names — it does not
+    call the backend and offers no guarantee of correctness; "test
+    connection" against the real source is still the only way to confirm a
+    mapping actually works.
