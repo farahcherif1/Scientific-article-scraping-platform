@@ -2,6 +2,10 @@
 
 This document tracks each connector's API details, rate limits, and how to verify it against the real (non-mocked) API before merging.
 
+> Need a source that isn't listed below (IEEE Xplore, HAL, DOAJ, CORE, Europe PMC, an
+> institutional repository, ...)? See [`docs/custom-connectors.md`](custom-connectors.md) -
+> a config-driven **Custom Connector** can add it without writing a new connector file.
+
 ## Shared connector infrastructure
 
 All connectors (arXiv, OpenAlex, Crossref, PubMed, Semantic Scholar) are built on the same shared infrastructure rather than reimplementing HTTP/retry/rate-limit logic per source:

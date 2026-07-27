@@ -32,7 +32,7 @@ jobs:
         run: pytest
 
   frontend:
-    name: Frontend - Lint & Build
+    name: Frontend - Lint, Test & Build
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -43,7 +43,12 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          # "lts/*" rather than a pinned major: jsdom's Vitest test
+          # environment (added alongside Vitest+RTL in this PR) depends on
+          # undici internals (`webidl.util.markAsUncloneable`) that a fixed
+          # "20" resolved to a Node 20.x patch too old to have - tracking
+          # current LTS avoids this aging out again for future PRs.
+          node-version: "lts/*"
           cache: "npm"
           cache-dependency-path: frontend/package-lock.json
 
@@ -52,6 +57,9 @@ jobs:
 
       - name: Lint
         run: npm run lint
+
+      - name: Run tests
+        run: npm test
 
       - name: Build
         run: npm run build

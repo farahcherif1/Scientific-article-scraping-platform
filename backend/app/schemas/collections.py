@@ -16,7 +16,14 @@ class SourceId(str, Enum):
 
 class CollectionParamsRequest(BaseModel):
     keywords: list[str] = Field(default_factory=list)
-    sources: list[SourceId]
+    # str rather than list[SourceId]: a request may also name a custom
+    # connector's slug (EP-custom-connectors), which isn't one of the fixed
+    # built-in ids. Nothing here needs to know custom sources exist -
+    # `app.orchestrator.runner.run_collection` already handles any source
+    # string it doesn't have a factory for by marking it failed without
+    # blocking the others, which is exactly the right behavior for a source
+    # slug that was since disabled/deleted.
+    sources: list[str]
     max_articles_per_keyword: int = Field(ge=10, le=100)
     year_from: int | None = Field(default=None, ge=1900)
     year_to: int | None = Field(default=None, ge=1900)
@@ -31,7 +38,7 @@ class CollectionParamsRequest(BaseModel):
 
     @field_validator("sources")
     @classmethod
-    def at_least_one_source(cls, v: list[SourceId]) -> list[SourceId]:
+    def at_least_one_source(cls, v: list[str]) -> list[str]:
         if not v:
             raise ValueError("Select at least one source.")
         return v

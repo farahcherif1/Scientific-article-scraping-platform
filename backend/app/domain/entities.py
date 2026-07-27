@@ -34,7 +34,14 @@ class RawArticle(BaseModel):
     categories: list[str] = Field(default_factory=list)
     citation_count: int | None = None
 
-    source: SourceEnum
+    # str rather than SourceEnum: built-in connectors still pass a SourceEnum
+    # member (StrEnum, so it satisfies `str` identically), but a custom
+    # connector (US-EP-custom-connectors) identifies itself by its
+    # user-defined slug, which isn't one of the fixed enum members. Nothing
+    # downstream (compliance/cleaning/dedup/ranking) branches on the enum
+    # type - it's only ever used as a plain grouping/display string - so
+    # this widening is safe.
+    source: str
     search_keyword: str
     collection_date: datetime
 
@@ -59,7 +66,7 @@ class ArticleClean(BaseModel):
     categories: list[str] = Field(default_factory=list)
     citation_count: int | None = None
 
-    source: SourceEnum
+    source: str
     search_keyword: str
     collection_date: datetime
 
@@ -79,7 +86,7 @@ class ConnectorError(Exception):
     (US-03.4: one source failing must not block the others).
     """
 
-    def __init__(self, *, source: SourceEnum, endpoint: str, keyword: str, error_class: str, message: str):
+    def __init__(self, *, source: str, endpoint: str, keyword: str, error_class: str, message: str):
         self.source = source
         self.endpoint = endpoint
         self.keyword = keyword

@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.v1 import collections, history, keywords
+from app.api.v1 import collections, custom_connectors, history, keywords
 from app.config import settings
 from app.db.session import init_db
 from app.infra.logging import configure_logging
@@ -33,6 +33,7 @@ app.add_middleware(
 app.include_router(keywords.router, prefix="/api/v1")
 app.include_router(history.router, prefix="/api/v1")
 app.include_router(collections.router, prefix="/api/v1")
+app.include_router(custom_connectors.router, prefix="/api/v1")
 
 
 @app.get("/health")

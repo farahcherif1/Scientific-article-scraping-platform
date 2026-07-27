@@ -1,4 +1,4 @@
-import { Zap, Type, Settings, Activity, Grid, Clock } from "lucide-react";
+import { Zap, Type, Settings, Activity, Grid, Clock, Database } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 
 interface StepDef {
@@ -66,6 +66,17 @@ export default function TopNav() {
         </nav>
 
         <div className="flex items-center gap-4 text-sm">
+          <button
+            onClick={() => navigate("/sources")}
+            className={`flex items-center gap-1.5 ${
+              location.pathname.startsWith("/sources")
+                ? "font-medium text-emerald-700"
+                : "text-slate-500 hover:text-slate-700"
+            }`}
+          >
+            <Database className="h-4 w-4" />
+            Sources
+          </button>
           <button
             onClick={() => navigate("/history")}
             className={`flex items-center gap-1.5 ${
