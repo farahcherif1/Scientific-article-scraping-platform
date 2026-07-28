@@ -18,6 +18,20 @@ class CollectionRun(Base):
     sources: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
     article_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     duplicate_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    quality_report: Mapped[dict] = mapped_column(
+        JSON,
+        nullable=False,
+        default=lambda: {
+            "overall": {
+                "title": 0.0,
+                "year": 0.0,
+                "doi": 0.0,
+                "abstract": 0.0,
+                "duplicate_rate": 0.0,
+            },
+            "sources": {},
+        },
+    )
     status: Mapped[str] = mapped_column(
         String(20), nullable=False, default=CollectionStatus.RUNNING
     )

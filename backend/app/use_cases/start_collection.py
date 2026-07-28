@@ -22,7 +22,7 @@ from app.connectors.registry import load_custom_connector_factories
 from app.connectors.semantic_scholar import SemanticScholarConnector
 from app.db.models import CollectionRun
 from app.db.session import SessionLocal
-from app.domain.cleaning import normalize_articles
+from app.domain.cleaning import build_quality_report, normalize_articles
 from app.domain.deduplication import deduplicate_articles
 from app.domain.entities import CollectionStatus
 from app.orchestrator import state as state_store
@@ -53,7 +53,21 @@ def create_collection_run(
 ) -> tuple[str, state_store.CollectionState]:
     """Persists the initial DB row and in-memory progress state. Does not start the run."""
     sources = list(payload.sources)
-    run = CollectionRun(keywords=payload.keywords, sources=sources, status=CollectionStatus.RUNNING)
+    run = CollectionRun(
+        keywords=payload.keywords,
+        sources=sources,
+        status=CollectionStatus.RUNNING,
+        quality_report={
+            "overall": {
+                "title": 0.0,
+                "year": 0.0,
+                "doi": 0.0,
+                "abstract": 0.0,
+                "duplicate_rate": 0.0,
+            },
+            "sources": {},
+        },
+    )
     db.add(run)
     db.commit()
     db.refresh(run)
@@ -98,11 +112,13 @@ async def run_collection_in_background(collection_id: str, payload: CollectionPa
         state.status = CollectionStatus.COMPLETED
 
     state.mark_finished()
+    quality_report = build_quality_report(dedup_result.articles)
     _persist_final_state(
         collection_id,
         state,
         article_count=len(articles),
         duplicate_count=dedup_result.duplicate_count,
+        quality_report=quality_report,
     )
 
 
@@ -125,6 +141,7 @@ def _persist_final_state(
     *,
     article_count: int,
     duplicate_count: int = 0,
+    quality_report: dict | None = None,
 ) -> None:
     db = SESSION_FACTORY()
     try:
@@ -133,6 +150,16 @@ def _persist_final_state(
             run.status = state.status
             run.article_count = article_count
             run.duplicate_count = duplicate_count
+            run.quality_report = quality_report or {
+                "overall": {
+                    "title": 0.0,
+                    "year": 0.0,
+                    "doi": 0.0,
+                    "abstract": 0.0,
+                    "duplicate_rate": 0.0,
+                },
+                "sources": {},
+            }
             db.commit()
     finally:
         db.close()

@@ -146,6 +146,23 @@ def test_history_reflects_completed_run():
     assert matching[0]["article_count"] == 20  # 2 keywords x 2 sources x 5 articles
 
 
+def test_collection_detail_includes_quality_report():
+    start = client.post("/api/v1/collections", json=_payload())
+    collection_id = start.json()["id"]
+
+    detail = client.get(f"/api/v1/collections/{collection_id}")
+    assert detail.status_code == 200
+    body = detail.json()
+    assert body["id"] == collection_id
+    assert body["quality_report"]["overall"]["title"] == 100.0
+    assert body["quality_report"]["overall"]["year"] == 0.0
+    assert body["quality_report"]["overall"]["doi"] == 0.0
+    assert body["quality_report"]["overall"]["abstract"] == 0.0
+    assert body["quality_report"]["overall"]["duplicate_rate"] == 0.0
+    assert "arxiv" in body["quality_report"]["sources"]
+    assert "openalex" in body["quality_report"]["sources"]
+
+
 def test_run_with_a_failing_source_reports_warning_status(monkeypatch):
     monkeypatch.setattr(
         start_collection_module,
