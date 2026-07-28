@@ -1,9 +1,11 @@
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.db.models import CollectionRun
 from app.db.session import get_db
 from app.orchestrator import state as state_store
 from app.schemas.collections import (
+    CollectionDetailResponse,
     CollectionParamsRequest,
     CollectionParamsResponse,
     CollectionParamsSummary,
@@ -11,6 +13,7 @@ from app.schemas.collections import (
     SourceProgressItem,
     StartCollectionResponse,
 )
+from app.use_cases.start_collection import _numeric_id
 from app.use_cases.start_collection import create_collection_run, run_collection_in_background
 
 router = APIRouter(prefix="/collections", tags=["collections"])
@@ -41,6 +44,23 @@ def start_collection(
     collection_id, state = create_collection_run(db, payload)
     background_tasks.add_task(run_collection_in_background, collection_id, payload)
     return StartCollectionResponse(id=collection_id, status=state.status)
+
+
+@router.get("/{collection_id}", response_model=CollectionDetailResponse)
+def get_collection(collection_id: str, db: Session = Depends(get_db)) -> CollectionDetailResponse:
+    run = db.get(CollectionRun, _numeric_id(collection_id))
+    if run is None:
+        raise HTTPException(status_code=404, detail="Unknown collection id.")
+    return CollectionDetailResponse(
+        id=run.public_id,
+        keywords=run.keywords,
+        sources=run.sources,
+        article_count=run.article_count,
+        duplicate_count=run.duplicate_count,
+        quality_report=run.quality_report,
+        created_at=run.created_at,
+        status=run.status,
+    )
 
 
 @router.get("/{collection_id}/progress", response_model=CollectionProgressResponse)
