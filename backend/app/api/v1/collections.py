@@ -13,8 +13,11 @@ from app.schemas.collections import (
     SourceProgressItem,
     StartCollectionResponse,
 )
-from app.use_cases.start_collection import _numeric_id
-from app.use_cases.start_collection import create_collection_run, run_collection_in_background
+from app.use_cases.start_collection import (
+    _numeric_id,
+    create_collection_run,
+    run_collection_in_background,
+)
 
 router = APIRouter(prefix="/collections", tags=["collections"])
 
