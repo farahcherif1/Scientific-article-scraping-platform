@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { AlertTriangle, Clock, RefreshCw } from "lucide-react";
+import { AlertTriangle, RefreshCw } from "lucide-react";
 import TopNav from "../components/TopNav";
 import { fetchCollectionDetail, type CollectionDetail } from "../api/collections";
 
