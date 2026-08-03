@@ -35,11 +35,10 @@ class ArticlePage:
     total: int
 
 
-def _base_query(collection_run_id: int, filters: ArticleFilters):
-    stmt = select(Article).where(
-        Article.collection_run_id == collection_run_id,
-        Article.is_duplicate.is_(False),
-    )
+def _base_query(collection_run_id: int, filters: ArticleFilters, *, exclude_duplicates: bool = True):
+    stmt = select(Article).where(Article.collection_run_id == collection_run_id)
+    if exclude_duplicates:
+        stmt = stmt.where(Article.is_duplicate.is_(False))
     if filters.year_from is not None:
         stmt = stmt.where(Article.year >= filters.year_from)
     if filters.year_to is not None:
@@ -82,6 +81,26 @@ def list_articles(
     return ArticlePage(items=items, total=total)
 
 
+def get_articles_for_export(
+    db: Session, collection_run_id: int, *, sort: str, filters: ArticleFilters
+) -> list[Article]:
+    """
+    All articles matching `filters` (duplicates included, unlike
+    `list_articles`'s default table view) - the full-precision source for
+    US-06.1/US-06.2 exports, which split this same set into
+    articles/deduped/duplicates rather than paginating it.
+    """
+    stmt = _base_query(collection_run_id, filters, exclude_duplicates=False)
+
+    descending = sort.startswith("-")
+    field = sort.removeprefix("-")
+    column = _SORT_COLUMNS.get(field, Article.relevance_score)
+    order = column.desc() if descending else column.asc()
+    stmt = stmt.order_by(nulls_last(order), Article.id.asc())
+
+    return list(db.scalars(stmt))
+
+
 @dataclass
 class PerSourceStat:
     source: str
@@ -110,6 +129,15 @@ def get_collection_stats(db: Session, collection_run_id: int) -> CollectionStats
     all_articles = list(
         db.scalars(select(Article).where(Article.collection_run_id == collection_run_id))
     )
+    return compute_stats(all_articles)
+
+
+def compute_stats(all_articles: list[Article]) -> CollectionStats:
+    """
+    Pure aggregation over an already-fetched article list, shared by
+    `get_collection_stats` (whole-run KPIs) and the export use case (US-06.1
+    "stats" sheet, scoped to whatever filters were active in the UI).
+    """
     deduped_articles = [a for a in all_articles if not a.is_duplicate]
 
     total = len(all_articles)

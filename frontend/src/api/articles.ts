@@ -83,9 +83,9 @@ async function parseErrorDetail(res: Response, fallback: string): Promise<string
   }
 }
 
-function buildQueryString(query: ArticlesQuery): string {
+function buildQueryString<T extends object>(query: T): string {
   const params = new URLSearchParams();
-  for (const [key, value] of Object.entries(query)) {
+  for (const [key, value] of Object.entries(query as Record<string, unknown>)) {
     if (value === undefined || value === null || value === "") continue;
     if (Array.isArray(value)) {
       for (const item of value) params.append(key, String(item));
@@ -116,4 +116,50 @@ export async function fetchCollectionStats(collectionId: string): Promise<Collec
     throw new Error(await parseErrorDetail(res, "Could not load collection stats."));
   }
   return res.json();
+}
+
+export type ExportFormat = "xlsx" | "csv" | "json";
+
+export interface ExportQuery extends ArticleFilters {
+  sort?: SortField;
+}
+
+function filenameFromContentDisposition(disposition: string | null, fallback: string): string {
+  const match = disposition ? /filename="?([^";]+)"?/.exec(disposition) : null;
+  return match ? match[1] : fallback;
+}
+
+/**
+ * US-06.1/US-06.2: downloads the current (filtered) dataset in one of the
+ * three formats. Fetched as a blob rather than a plain `<a href>` navigation
+ * so a failed export (e.g. 404) surfaces as a catchable error instead of the
+ * browser silently "downloading" a JSON error body as a fake .xlsx file.
+ */
+export async function downloadExport(
+  collectionId: string,
+  format: ExportFormat,
+  query: ExportQuery = {}
+): Promise<void> {
+  const res = await fetch(
+    `${API_BASE}/api/v1/collections/${collectionId}/export${buildQueryString({ ...query, format })}`
+  );
+  if (!res.ok) {
+    throw new Error(
+      await parseErrorDetail(res, `Could not export as ${format.toUpperCase()}.`)
+    );
+  }
+  const blob = await res.blob();
+  const filename = filenameFromContentDisposition(
+    res.headers.get("content-disposition"),
+    `${collectionId}_export.${format}`
+  );
+
+  const objectUrl = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = objectUrl;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(objectUrl);
 }

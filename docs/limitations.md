@@ -239,3 +239,33 @@
        `none` clears it) — `app/use_cases/manage_custom_connectors.py::update_custom_connector`.
        Covered by the redaction/preserve/replace/clear tests in
        `test_custom_connectors.py`.
+- **US-06.1 (Excel export) and US-06.2 (CSV/JSON export) are implemented.**
+  `GET /api/v1/collections/{id}/export?format=xlsx|csv|json` accepts the same
+  `sort`/`year_from`/`year_to`/`source`/`has_doi`/`has_abstract`/`keyword`
+  query params as `GET .../articles`, so whatever the Results page's filter
+  sidebar currently has active is exactly what gets exported - there is no
+  separate "export scope" concept (`app/use_cases/export_dataset.py`,
+  `app/exporters/{xlsx,csv,json}_exporter.py`). `.xlsx` has five sheets
+  (`articles` = every matching row including duplicates, `deduped`,
+  `duplicates`, `stats` recomputed over that same filtered set, `params`
+  documenting the run + which filters/sort were active); every sheet's header
+  row is bold with `freeze_panes="A2"`. `.csv` is written with the stdlib
+  `csv` module, UTF-8 with a BOM (`utf-8-sig`) and `QUOTE_NONNUMERIC` so every
+  string cell is quoted and numeric cells aren't. `.json` is a plain array of
+  article records (list fields like `authors` stay real JSON arrays, unlike
+  the semicolon-joined CSV/XLSX cells). The frontend (`ResultsPage.tsx`) has
+  one button per format, per the AC, fetched as a blob (not a bare `<a href>`
+  navigation) so a failed export surfaces as a visible error message instead
+  of silently downloading a JSON error body as a fake `.xlsx`/`.csv` file.
+  Covered by `test_exporters.py` (pure exporter unit tests),
+  `test_exports_api.py` (endpoint + filter-propagation), and
+  `ResultsPage.test.tsx`. Known scope limits:
+  - `CollectionParamsRequest.include_missing_abstract` /
+    `exclude_duplicates_on_export` (captured at collection-start time) are
+    still not applied anywhere (pre-existing gap, noted above under
+    US-03.4) - export filtering is entirely driven by the Results page's
+    live filter state instead, which supersedes what those two fields were
+    originally meant for.
+  - No row/cell limit on the `.xlsx` writer; a very large corpus is written
+    fully in-memory (`openpyxl.Workbook`) before being returned, same
+    single-process MVP tradeoff already accepted elsewhere in this file.

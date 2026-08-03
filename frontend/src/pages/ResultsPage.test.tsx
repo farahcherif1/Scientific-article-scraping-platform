@@ -12,6 +12,7 @@ vi.mock("../api/articles", async (importOriginal) => {
     ...actual,
     fetchArticles: vi.fn(),
     fetchCollectionStats: vi.fn(),
+    downloadExport: vi.fn(),
   };
 });
 
@@ -86,6 +87,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(articlesApi.fetchArticles).mockResolvedValue(makeArticlesResponse());
   vi.mocked(articlesApi.fetchCollectionStats).mockResolvedValue(makeStats());
+  vi.mocked(articlesApi.downloadExport).mockResolvedValue(undefined);
 });
 
 describe("ResultsPage - banner and header", () => {
@@ -93,11 +95,77 @@ describe("ResultsPage - banner and header", () => {
     renderResultsPage();
     expect(await screen.findByText(/results are not exhaustive/i)).toBeInTheDocument();
   });
+});
 
-  it("shows a disabled Export Dataset button (Sprint 6 feature, not built yet)", async () => {
+describe("ResultsPage - export buttons (US-06.1, US-06.2)", () => {
+  it("shows one button per format", async () => {
     renderResultsPage();
-    const exportButton = await screen.findByRole("button", { name: /export dataset/i });
-    expect(exportButton).toBeDisabled();
+    await screen.findByText("Deep Learning for Genomics");
+    expect(screen.getByRole("button", { name: "XLSX" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "CSV" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "JSON" })).toBeInTheDocument();
+  });
+
+  it("clicking a format button downloads that format for the current collection", async () => {
+    const user = userEvent.setup();
+    renderResultsPage();
+    await screen.findByText("Deep Learning for Genomics");
+
+    await user.click(screen.getByRole("button", { name: "CSV" }));
+
+    await waitFor(() => {
+      expect(articlesApi.downloadExport).toHaveBeenCalledWith(
+        "COL-0001",
+        "csv",
+        expect.anything()
+      );
+    });
+  });
+
+  it("carries the active filters and sort into the export request", async () => {
+    const user = userEvent.setup();
+    renderResultsPage("/collections/COL-0001?source=arxiv&has_doi=true&sort=-year");
+    await screen.findByText("Deep Learning for Genomics");
+
+    await user.click(screen.getByRole("button", { name: "XLSX" }));
+
+    await waitFor(() => {
+      expect(articlesApi.downloadExport).toHaveBeenCalledWith(
+        "COL-0001",
+        "xlsx",
+        expect.objectContaining({ source: ["arxiv"], has_doi: true, sort: "-year" })
+      );
+    });
+  });
+
+  it("shows an error message when the export fails, without crashing the page", async () => {
+    vi.mocked(articlesApi.downloadExport).mockRejectedValue(new Error("Export failed: boom"));
+    const user = userEvent.setup();
+    renderResultsPage();
+    await screen.findByText("Deep Learning for Genomics");
+
+    await user.click(screen.getByRole("button", { name: "JSON" }));
+
+    expect(await screen.findByText("Export failed: boom")).toBeInTheDocument();
+  });
+
+  it("disables the other buttons while an export is in progress", async () => {
+    let resolveDownload: () => void = () => {};
+    vi.mocked(articlesApi.downloadExport).mockReturnValue(
+      new Promise((resolve) => {
+        resolveDownload = () => resolve(undefined);
+      })
+    );
+    const user = userEvent.setup();
+    renderResultsPage();
+    await screen.findByText("Deep Learning for Genomics");
+
+    await user.click(screen.getByRole("button", { name: "XLSX" }));
+    expect(screen.getByRole("button", { name: "CSV" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "JSON" })).toBeDisabled();
+
+    resolveDownload();
+    await waitFor(() => expect(screen.getByRole("button", { name: "CSV" })).toBeEnabled());
   });
 });
 
