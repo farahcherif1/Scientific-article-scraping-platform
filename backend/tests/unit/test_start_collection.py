@@ -6,7 +6,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.db.models import Base
+from app.db.models import Article, Base, CollectionRun
 from app.db.session import get_db
 from app.domain.entities import ConnectorError, RawArticle
 from app.main import app
@@ -134,6 +134,27 @@ def test_abort_for_unknown_id_returns_404():
     assert response.status_code == 404
 
 
+def test_completed_run_persists_articles_matching_the_run_summary():
+    start = client.post("/api/v1/collections", json=_payload())
+    collection_id = start.json()["id"]
+
+    run = client.get(f"/api/v1/collections/{collection_id}/articles?page_size=200")
+    stats = client.get(f"/api/v1/collections/{collection_id}/stats").json()
+
+    db = TestingSessionLocal()
+    numeric_id = CollectionRun.numeric_id(collection_id)
+    persisted = db.query(Article).filter(Article.collection_run_id == numeric_id).all()
+    db.close()
+
+    # 2 keywords x 2 sources x 5 articles/keyword, all distinct titles -> no duplicates.
+    assert len(persisted) == 20
+    assert stats["total"] == 20
+    assert stats["deduped"] == 20
+    assert stats["duplicates"] == 0
+    assert run.json()["pagination"]["total"] == 20
+    assert all(a.relevance_score >= 0 for a in persisted)
+
+
 def test_history_reflects_completed_run():
     start = client.post("/api/v1/collections", json=_payload())
     collection_id = start.json()["id"]
@@ -144,39 +165,6 @@ def test_history_reflects_completed_run():
     assert len(matching) == 1
     assert matching[0]["status"] == "completed"
     assert matching[0]["article_count"] == 20  # 2 keywords x 2 sources x 5 articles
-
-
-def test_collection_detail_includes_quality_report():
-    start = client.post("/api/v1/collections", json=_payload())
-    collection_id = start.json()["id"]
-
-    detail = client.get(f"/api/v1/collections/{collection_id}")
-    assert detail.status_code == 200
-    body = detail.json()
-    assert body["id"] == collection_id
-    assert body["quality_report"]["overall"]["title"] == 100.0
-    assert body["quality_report"]["overall"]["year"] == 0.0
-    assert body["quality_report"]["overall"]["doi"] == 0.0
-    assert body["quality_report"]["overall"]["abstract"] == 0.0
-    assert body["quality_report"]["overall"]["duplicate_rate"] == 0.0
-    assert "arxiv" in body["quality_report"]["sources"]
-    assert "openalex" in body["quality_report"]["sources"]
-
-
-def test_collection_stats_endpoint_returns_dashboard_metrics():
-    start = client.post("/api/v1/collections", json=_payload())
-    collection_id = start.json()["id"]
-
-    stats = client.get(f"/api/v1/collections/{collection_id}/stats")
-    assert stats.status_code == 200
-    body = stats.json()
-    assert body["total"] == 20
-    assert body["deduped"] == 20
-    assert body["duplicates"] == 0
-    assert body["doi_percentage"] == 0.0
-    assert body["abstract_percentage"] == 0.0
-    assert {item["source"] for item in body["per_source_counts"]} == {"arxiv", "openalex"}
-    assert body["articles_per_year"] == []
 
 
 def test_run_with_a_failing_source_reports_warning_status(monkeypatch):

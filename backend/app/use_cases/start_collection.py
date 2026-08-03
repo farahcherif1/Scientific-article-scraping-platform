@@ -9,7 +9,6 @@ route handler stays a thin adapter (Clean Architecture: api -> use_cases).
 from __future__ import annotations
 
 import logging
-from collections import Counter
 
 from sqlalchemy.orm import Session
 
@@ -21,11 +20,12 @@ from app.connectors.openalex import OpenAlexConnector
 from app.connectors.pubmed import PubMedConnector
 from app.connectors.registry import load_custom_connector_factories
 from app.connectors.semantic_scholar import SemanticScholarConnector
-from app.db.models import CollectionRun
+from app.db.models import Article, CollectionRun
 from app.db.session import SessionLocal
-from app.domain.cleaning import build_quality_report, normalize_articles
+from app.domain.cleaning import normalize_articles
 from app.domain.deduplication import deduplicate_articles
-from app.domain.entities import CollectionStatus
+from app.domain.entities import ArticleClean, CollectionStatus
+from app.domain.ranking import compute_relevance_score
 from app.orchestrator import state as state_store
 from app.orchestrator.runner import run_collection
 from app.schemas.collections import CollectionParamsRequest
@@ -54,30 +54,7 @@ def create_collection_run(
 ) -> tuple[str, state_store.CollectionState]:
     """Persists the initial DB row and in-memory progress state. Does not start the run."""
     sources = list(payload.sources)
-    run = CollectionRun(
-        keywords=payload.keywords,
-        sources=sources,
-        status=CollectionStatus.RUNNING,
-        quality_report={
-            "overall": {
-                "title": 0.0,
-                "year": 0.0,
-                "doi": 0.0,
-                "abstract": 0.0,
-                "duplicate_rate": 0.0,
-            },
-            "sources": {},
-        },
-        stats={
-            "total": 0,
-            "deduped": 0,
-            "duplicates": 0,
-            "doi_percentage": 0.0,
-            "abstract_percentage": 0.0,
-            "per_source_counts": [],
-            "articles_per_year": [],
-        },
-    )
+    run = CollectionRun(keywords=payload.keywords, sources=sources, status=CollectionStatus.RUNNING)
     db.add(run)
     db.commit()
     db.refresh(run)
@@ -104,26 +81,13 @@ async def run_collection_in_background(collection_id: str, payload: CollectionPa
         )
         normalized_articles = normalize_articles(articles)
         dedup_result = deduplicate_articles(normalized_articles)
+        _persist_articles(collection_id, dedup_result.articles, payload.keywords)
     except Exception as exc:
         logger.exception("collection_crashed", extra={"collection_id": collection_id})
         state.status = CollectionStatus.FAILED
         state.error = str(exc)
         state.mark_finished()
-        _persist_final_state(
-            collection_id,
-            state,
-            article_count=0,
-            duplicate_count=0,
-            stats={
-                "total": 0,
-                "deduped": 0,
-                "duplicates": 0,
-                "doi_percentage": 0.0,
-                "abstract_percentage": 0.0,
-                "per_source_counts": [],
-                "articles_per_year": [],
-            },
-        )
+        _persist_final_state(collection_id, state, article_count=0, duplicate_count=0)
         return
 
     if state.abort_requested:
@@ -136,14 +100,11 @@ async def run_collection_in_background(collection_id: str, payload: CollectionPa
         state.status = CollectionStatus.COMPLETED
 
     state.mark_finished()
-    quality_report = build_quality_report(dedup_result.articles)
     _persist_final_state(
         collection_id,
         state,
         article_count=len(articles),
         duplicate_count=dedup_result.duplicate_count,
-        quality_report=quality_report,
-        stats=_build_collection_stats(dedup_result.articles, dedup_result.duplicate_count),
     )
 
 
@@ -160,72 +121,68 @@ def _load_custom_factories() -> dict[str, object]:
         db.close()
 
 
-def _build_collection_stats(articles: list[object], duplicate_count: int) -> dict[str, object]:
-    total = len(articles)
-    deduped = max(total - duplicate_count, 0)
-    doi_percentage = round((sum(1 for article in articles if getattr(article, "doi", None)) / total) * 100, 2) if total else 0.0
-    abstract_percentage = round((sum(1 for article in articles if getattr(article, "abstract", None) is not None) / total) * 100, 2) if total else 0.0
-
-    source_counts: Counter[str] = Counter(getattr(article, "source", "") for article in articles)
-    year_counts: Counter[int] = Counter(
-        int(getattr(article, "year", 0))
-        for article in articles
-        if getattr(article, "year", None) is not None
-    )
-
-    return {
-        "total": total,
-        "deduped": deduped,
-        "duplicates": duplicate_count,
-        "doi_percentage": doi_percentage,
-        "abstract_percentage": abstract_percentage,
-        "per_source_counts": [
-            {"source": source, "count": count}
-            for source, count in sorted(source_counts.items())
-        ],
-        "articles_per_year": [[year, count] for year, count in sorted(year_counts.items())],
-    }
-
-
 def _persist_final_state(
     collection_id: str,
     state: state_store.CollectionState,
     *,
     article_count: int,
     duplicate_count: int = 0,
-    quality_report: dict | None = None,
-    stats: dict | None = None,
 ) -> None:
     db = SESSION_FACTORY()
     try:
-        run = db.get(CollectionRun, _numeric_id(collection_id))
+        run = db.get(CollectionRun, CollectionRun.numeric_id(collection_id))
         if run is not None:
             run.status = state.status
             run.article_count = article_count
             run.duplicate_count = duplicate_count
-            run.quality_report = quality_report or {
-                "overall": {
-                    "title": 0.0,
-                    "year": 0.0,
-                    "doi": 0.0,
-                    "abstract": 0.0,
-                    "duplicate_rate": 0.0,
-                },
-                "sources": {},
-            }
-            run.stats = stats or {
-                "total": article_count,
-                "deduped": max(article_count - duplicate_count, 0),
-                "duplicates": duplicate_count,
-                "doi_percentage": 0.0,
-                "abstract_percentage": 0.0,
-                "per_source_counts": [],
-                "articles_per_year": [],
-            }
             db.commit()
     finally:
         db.close()
 
 
-def _numeric_id(public_id: str) -> int:
-    return int(public_id.removeprefix("COL-"))
+def _persist_articles(
+    collection_id: str, articles: list[ArticleClean], keywords: list[str]
+) -> None:
+    """
+    Persists the normalized, deduplicated articles for this run (US-04.1/
+    US-04.2 output) so the results API (US-04.3/US-05.1/US-05.2) has
+    something to read - see docs/limitations.md. Every article is kept,
+    duplicates included (marked via is_duplicate/duplicate_group_id, never
+    dropped), matching the Collection Charter's "duplicates are flagged,
+    not deleted" rule already followed by deduplicate_articles.
+    """
+    if not articles:
+        return
+    run_id = CollectionRun.numeric_id(collection_id)
+    db = SESSION_FACTORY()
+    try:
+        db.bulk_save_objects(
+            Article(
+                collection_run_id=run_id,
+                title=article.title,
+                authors=article.authors,
+                year=article.year,
+                abstract=article.abstract,
+                url=article.url,
+                doi=article.doi,
+                venue=article.venue,
+                domain=article.domain,
+                categories=article.categories,
+                citation_count=article.citation_count,
+                source=article.source,
+                search_keyword=article.search_keyword,
+                collection_date=article.collection_date,
+                duplicate_group_id=article.duplicate_group_id,
+                duplicate_similarity_score=article.duplicate_similarity_score,
+                duplicate_rule=article.duplicate_rule,
+                is_duplicate=article.is_duplicate,
+                missing_fields=article.missing_fields,
+                relevance_score=compute_relevance_score(
+                    article.title, article.abstract, keywords
+                ),
+            )
+            for article in articles
+        )
+        db.commit()
+    finally:
+        db.close()

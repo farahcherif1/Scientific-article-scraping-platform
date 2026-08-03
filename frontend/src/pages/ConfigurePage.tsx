@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import TopNav from "../components/TopNav";
 import Toggle from "../components/Toggle";
+import Select from "../components/Select";
 import { startCollection } from "../api/collections";
 import { checkCustomConnectorHealth, listCustomConnectors } from "../api/customConnectors";
 
@@ -329,17 +330,12 @@ export default function ConfigurePage() {
                     <Languages className="h-3.5 w-3.5" />
                     Language (if available)
                   </label>
-                  <select
+                  <Select
                     value={language}
-                    onChange={(e) => setLanguage(e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  >
-                    {LANGUAGE_OPTIONS.map((opt) => (
-                      <option key={opt} value={opt}>
-                        {opt}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={setLanguage}
+                    options={LANGUAGE_OPTIONS.map((opt) => ({ value: opt, label: opt }))}
+                    aria-label="Language"
+                  />
                 </div>
                 <div>
                   <label className="mb-1.5 flex items-center gap-1.5 text-sm text-slate-600">

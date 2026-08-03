@@ -5,9 +5,9 @@
   for it yet — tables are created via `Base.metadata.create_all()` on startup
   (`app/db/session.py:init_db`). This is fine for the SQLite MVP but should be
   replaced by a proper Alembic migration before the Postgres cutover.
-- Clicking a row in `HistoryPage` is wired to an `onOpenCollection(id)` callback
-  but there is no Results view yet (US-05.1, Sprint 5) to reopen — it currently
-  just navigates back to the Keywords page as a placeholder.
+- Clicking a row in `HistoryPage` navigates to `/collections/:id`, which is now
+  the real `ResultsPage` (US-05.1, Sprint 5) rather than the earlier
+  `Construction`-icon placeholder — see the articles-persistence entry below.
 - **US-03.4 (multi-source orchestrator) is implemented and live-tested**
   (`app/orchestrator/runner.py`, `app/orchestrator/state.py`,
   `app/use_cases/start_collection.py`, `POST /api/v1/collections`,
@@ -80,20 +80,44 @@
   (the "100-article hard cap" panel) is still static copy rather than a
   dynamic warning driven by the actual run — `CollectionPage` is where a
   real capped-run warning would show up, via `progress.warning`.
-- **US-04.1 (metadata normalization) is implemented as pure domain functions,
-  not yet wired into the collection pipeline.** `app/domain/cleaning.py` adds
-  `normalize_title`, `normalize_authors`, `normalize_year`, `normalize_doi`,
-  `normalize_abstract`, `normalize_article`/`normalize_articles`, and
-  `build_missing_value_report`, mapping `RawArticle` -> the new
-  `ArticleClean` entity (`app/domain/entities.py`). Covered by 38 unit tests
-  in `test_metadata_normalization.py` (happy path + malformed-input edge
-  cases per field, plus the missing-value report). Not yet called from
-  `app/orchestrator/runner.py::run_collection` or `start_collection.py`:
-  there is still no `articles` table and no endpoint to read collected
-  articles back (see the `COL-000x` progress-only limitation above), so
-  wiring normalization into the pipeline today would have no observable
-  effect - it belongs with whichever story adds article persistence
-  (US-05.1 territory) rather than with US-04.1's own subtasks.
+- **US-04.1 (metadata normalization) is implemented as pure domain functions**
+  in `app/domain/cleaning.py` (`normalize_title`, `normalize_authors`,
+  `normalize_year`, `normalize_doi`, `normalize_abstract`,
+  `normalize_article`/`normalize_articles`, `build_missing_value_report`),
+  mapping `RawArticle` -> `ArticleClean` (`app/domain/entities.py`). Covered
+  by 38 unit tests in `test_metadata_normalization.py`. **Now wired into the
+  pipeline** (`app/use_cases/start_collection.py::run_collection_in_background`
+  calls `normalize_articles` then `deduplicate_articles` then persists the
+  result) - see the articles-persistence entry below.
+- **Article persistence + results API (US-04.3, US-05.1, US-05.2, US-05.3,
+  US-05.4) added.** A new `articles` table (`app/db/models.py::Article`)
+  stores the normalized, deduplicated output of every completed run,
+  written by `app/use_cases/start_collection.py::_persist_articles`
+  (duplicates are kept and flagged via `is_duplicate`/`duplicate_group_id`,
+  never dropped, per the Collection Charter). `GET
+  /api/v1/collections/{id}/articles` (`app/api/v1/articles.py`,
+  `app/use_cases/list_articles.py`) supports pagination, `sort=relevance|
+  year|citation_count` (optional `-` prefix, default `-relevance`,
+  formula in `docs/relevance.md`), and AND-combined filters (`year_from`/
+  `year_to` range - articles with no `year` are excluded once either bound
+  is set, `source` repeated for a multi-source OR match, `has_doi`,
+  `has_abstract`, `keyword` substring on `search_keyword`).
+  `GET /api/v1/collections/{id}/stats` returns the KPI
+  numbers (total/deduped/duplicates/`%` with DOI/abstract), a per-source
+  quality breakdown, and an articles-per-year series for the dashboard
+  chart. Known scope limits:
+  - Same MVP tradeoff as `collection_runs`/`custom_connectors`: no Alembic
+    migration for `articles` yet, just `Base.metadata.create_all()`.
+  - The article-listing endpoint's default view excludes duplicates
+    (`is_duplicate = false`); there is no "show duplicates in the table"
+    toggle yet, only the `duplicates` count on the stats endpoint.
+  - `relevance_score` is computed once, at persistence time, against the
+    full collection keyword list, and stored on the row (not recomputed
+    per request) - a simple keyword-frequency heuristic, not TF-IDF or
+    embeddings (see `docs/relevance.md`).
+  - `/stats` recomputes per-source and per-year aggregates from the full
+    row set on every request - fine at MVP scale, would need caching or
+    SQL-side aggregation for a much larger corpus.
 - **PubMed and Semantic Scholar connectors are implemented**
   (`app/connectors/pubmed.py`, `app/connectors/semantic_scholar.py`), reusing
   the same shared infra as arXiv/OpenAlex/Crossref (`BaseConnector`,
