@@ -1,4 +1,3 @@
-from datetime import datetime
 from enum import Enum
 from typing import Literal
 
@@ -88,42 +87,3 @@ class CollectionProgressResponse(BaseModel):
     sources: list[SourceProgressItem]
     warning: str | None
     error: str | None
-
-
-class QualityReportStats(BaseModel):
-    title: float
-    year: float
-    doi: float
-    abstract: float
-    duplicate_rate: float
-
-
-class CollectionQualityReport(BaseModel):
-    overall: QualityReportStats
-    sources: dict[str, QualityReportStats]
-
-
-class CollectionDetailResponse(BaseModel):
-    id: str
-    keywords: list[str]
-    sources: list[str]
-    article_count: int
-    duplicate_count: int
-    quality_report: CollectionQualityReport
-    created_at: datetime
-    status: CollectionStatus
-
-
-class CollectionStatsPerSourceItem(BaseModel):
-    source: str
-    count: int
-
-
-class CollectionStatsResponse(BaseModel):
-    total: int
-    deduped: int
-    duplicates: int
-    doi_percentage: float
-    abstract_percentage: float
-    per_source_counts: list[CollectionStatsPerSourceItem]
-    articles_per_year: list[tuple[int, int]]

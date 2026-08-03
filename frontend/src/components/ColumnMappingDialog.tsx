@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { X } from "lucide-react";
 import type { ExcelPreview } from "../api/keywords";
+import Select from "./Select";
 
 interface Props {
   fileName: string;
@@ -44,38 +45,27 @@ export default function ColumnMappingDialog({
         <div className="mt-5 space-y-4">
           <div>
             <label className="mb-1.5 block text-sm font-medium text-slate-700">Sheet</label>
-            <select
+            <Select
               value={sheet}
-              onChange={(e) => {
-                const nextSheet = e.target.value;
+              onChange={(nextSheet) => {
                 setSheet(nextSheet);
                 setColumn(preview.columns[nextSheet]?.[0] ?? "");
               }}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            >
-              {preview.sheet_names.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
+              options={preview.sheet_names.map((s) => ({ value: s, label: s }))}
+              aria-label="Sheet"
+            />
           </div>
 
           <div>
             <label className="mb-1.5 block text-sm font-medium text-slate-700">
               Column containing keywords
             </label>
-            <select
+            <Select
               value={column}
-              onChange={(e) => setColumn(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            >
-              {columnsForSheet.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
+              onChange={setColumn}
+              options={columnsForSheet.map((c) => ({ value: c, label: c }))}
+              aria-label="Column containing keywords"
+            />
           </div>
         </div>
 

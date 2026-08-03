@@ -14,6 +14,7 @@ import {
   XCircle,
 } from "lucide-react";
 import TopNav from "../components/TopNav";
+import Select from "../components/Select";
 import {
   createCustomConnector,
   emptyCustomConnectorConfig,
@@ -459,14 +460,15 @@ export default function CustomConnectorWizardPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="mb-1.5 block text-sm font-medium text-slate-700">HTTP method</label>
-                  <select
+                  <Select
                     value={httpMethod}
-                    onChange={(e) => setHttpMethod(e.target.value as "GET" | "POST")}
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  >
-                    <option value="GET">GET</option>
-                    <option value="POST">POST</option>
-                  </select>
+                    onChange={setHttpMethod}
+                    options={[
+                      { value: "GET", label: "GET" },
+                      { value: "POST", label: "POST" },
+                    ]}
+                    aria-label="HTTP method"
+                  />
                 </div>
                 <div>
                   <label className="mb-1.5 block text-sm font-medium text-slate-700">
@@ -483,17 +485,15 @@ export default function CustomConnectorWizardPage() {
 
               <div className="border-t border-slate-100 pt-5">
                 <label className="mb-1.5 block text-sm font-medium text-slate-700">Authentication</label>
-                <select
+                <Select
                   value={authType}
-                  onChange={(e) => setAuthType(e.target.value as AuthType)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                >
-                  {(Object.keys(AUTH_LABELS) as AuthType[]).map((type) => (
-                    <option key={type} value={type}>
-                      {AUTH_LABELS[type]}
-                    </option>
-                  ))}
-                </select>
+                  onChange={setAuthType}
+                  options={(Object.keys(AUTH_LABELS) as AuthType[]).map((type) => ({
+                    value: type,
+                    label: AUTH_LABELS[type],
+                  }))}
+                  aria-label="Authentication"
+                />
 
                 {authType !== "none" && (
                   <div className="mt-3 grid grid-cols-2 gap-4">
@@ -578,17 +578,15 @@ export default function CustomConnectorWizardPage() {
             <div className="flex flex-col gap-5">
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-slate-700">Pagination style</label>
-                <select
+                <Select
                   value={paginationStyle}
-                  onChange={(e) => setPaginationStyle(e.target.value as PaginationStyle)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                >
-                  {(Object.keys(PAGINATION_LABELS) as PaginationStyle[]).map((style) => (
-                    <option key={style} value={style}>
-                      {PAGINATION_LABELS[style]}
-                    </option>
-                  ))}
-                </select>
+                  onChange={setPaginationStyle}
+                  options={(Object.keys(PAGINATION_LABELS) as PaginationStyle[]).map((style) => ({
+                    value: style,
+                    label: PAGINATION_LABELS[style],
+                  }))}
+                  aria-label="Pagination style"
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
