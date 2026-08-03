@@ -26,9 +26,11 @@ function formatTimestamp(iso: string) {
   });
 }
 
+/*
 function metricBadge(name: string, value: number) {
   const target = KPI_TARGETS[name as keyof typeof KPI_TARGETS];
   const success = target !== undefined && value >= target;
+
   return (
     <span
       className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${
@@ -41,6 +43,7 @@ function metricBadge(name: string, value: number) {
     </span>
   );
 }
+*/
 
 function formatSourceLabel(source: string) {
   const labels: Record<string, string> = {
