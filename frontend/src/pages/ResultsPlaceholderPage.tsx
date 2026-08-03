@@ -8,12 +8,12 @@ import {
   type CollectionDetail,
   type CollectionStats,
 } from "../api/collections";
-
+/*
 const KPI_TARGETS = {
   title: 95,
   year: 80,
 };
-
+*/
 function formatTimestamp(iso: string) {
   const d = new Date(iso);
   return d.toLocaleString("en-US", {
