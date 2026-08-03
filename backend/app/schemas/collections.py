@@ -112,3 +112,18 @@ class CollectionDetailResponse(BaseModel):
     quality_report: CollectionQualityReport
     created_at: datetime
     status: CollectionStatus
+
+
+class CollectionStatsPerSourceItem(BaseModel):
+    source: str
+    count: int
+
+
+class CollectionStatsResponse(BaseModel):
+    total: int
+    deduped: int
+    duplicates: int
+    doi_percentage: float
+    abstract_percentage: float
+    per_source_counts: list[CollectionStatsPerSourceItem]
+    articles_per_year: list[tuple[int, int]]

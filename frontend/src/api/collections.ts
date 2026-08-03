@@ -114,6 +114,16 @@ export interface CollectionDetail {
   status: CollectionRunStatus;
 }
 
+export interface CollectionStats {
+  total: number;
+  deduped: number;
+  duplicates: number;
+  doi_percentage: number;
+  abstract_percentage: number;
+  per_source_counts: Array<{ source: string; count: number }>;
+  articles_per_year: Array<[number, number]>;
+}
+
 async function parseErrorDetail(res: Response, fallback: string): Promise<string> {
   try {
     const body = await res.json();
@@ -135,6 +145,14 @@ export async function fetchCollectionDetail(id: string): Promise<CollectionDetai
   const res = await fetch(`${API_BASE}/api/v1/collections/${id}`);
   if (!res.ok) {
     throw new Error(await parseErrorDetail(res, "Could not load collection details."));
+  }
+  return res.json();
+}
+
+export async function fetchCollectionStats(id: string): Promise<CollectionStats> {
+  const res = await fetch(`${API_BASE}/api/v1/collections/${id}/stats`);
+  if (!res.ok) {
+    throw new Error(await parseErrorDetail(res, "Could not load collection stats."));
   }
   return res.json();
 }

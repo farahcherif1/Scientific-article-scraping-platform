@@ -163,6 +163,22 @@ def test_collection_detail_includes_quality_report():
     assert "openalex" in body["quality_report"]["sources"]
 
 
+def test_collection_stats_endpoint_returns_dashboard_metrics():
+    start = client.post("/api/v1/collections", json=_payload())
+    collection_id = start.json()["id"]
+
+    stats = client.get(f"/api/v1/collections/{collection_id}/stats")
+    assert stats.status_code == 200
+    body = stats.json()
+    assert body["total"] == 20
+    assert body["deduped"] == 20
+    assert body["duplicates"] == 0
+    assert body["doi_percentage"] == 0.0
+    assert body["abstract_percentage"] == 0.0
+    assert {item["source"] for item in body["per_source_counts"]} == {"arxiv", "openalex"}
+    assert body["articles_per_year"] == []
+
+
 def test_run_with_a_failing_source_reports_warning_status(monkeypatch):
     monkeypatch.setattr(
         start_collection_module,

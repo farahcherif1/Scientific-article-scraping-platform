@@ -29,6 +29,10 @@ def ensure_schema(engine_to_use=None) -> None:
         with target_engine.begin() as conn:
             conn.execute(text("ALTER TABLE collection_runs ADD COLUMN created_at DATETIME"))
 
+    if "stats" not in collection_columns:
+        with target_engine.begin() as conn:
+            conn.execute(text("ALTER TABLE collection_runs ADD COLUMN stats JSON"))
+
     Base.metadata.create_all(bind=target_engine)
 
 
