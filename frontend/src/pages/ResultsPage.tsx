@@ -7,10 +7,13 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
-  Download,
+  FileJson,
+  FileSpreadsheet,
+  FileText,
   FileWarning,
   Info,
   Link2Off,
+  Loader2,
   RefreshCw,
   RotateCcw,
   Search,
@@ -20,11 +23,13 @@ import TopNav from "../components/TopNav";
 import Select from "../components/Select";
 import ArticlesPerYearChart from "../components/ArticlesPerYearChart";
 import {
+  downloadExport,
   fetchArticles,
   fetchCollectionStats,
   type Article,
   type ArticlesResponse,
   type CollectionStats,
+  type ExportFormat,
   type SortField,
 } from "../api/articles";
 
@@ -48,6 +53,12 @@ const SORT_OPTIONS: { value: SortField; label: string }[] = [
   { value: "year", label: "Year (oldest first)" },
   { value: "-citation_count", label: "Citations (most first)" },
   { value: "citation_count", label: "Citations (least first)" },
+];
+
+const EXPORT_FORMATS: { format: ExportFormat; label: string; icon: typeof FileSpreadsheet }[] = [
+  { format: "xlsx", label: "XLSX", icon: FileSpreadsheet },
+  { format: "csv", label: "CSV", icon: FileText },
+  { format: "json", label: "JSON", icon: FileJson },
 ];
 
 function sourceLabel(source: string): string {
@@ -182,6 +193,20 @@ export default function ResultsPage() {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [selected, setSelected] = useState<Article | null>(null);
+  const [exportingFormat, setExportingFormat] = useState<ExportFormat | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
+
+  // Shared with both the results fetch and export downloads, so "active
+  // filters are reflected in the exported dataset" (US-06.1/US-06.2) holds
+  // by construction - the export request always carries what's on screen.
+  const activeFilters = {
+    year_from: yearFrom ? Number(yearFrom) : undefined,
+    year_to: yearTo ? Number(yearTo) : undefined,
+    source: selectedSources.length > 0 ? selectedSources : undefined,
+    has_doi: hasDoi || undefined,
+    has_abstract: hasAbstract || undefined,
+    keyword: keywordParam || undefined,
+  };
 
   const updateParams = useCallback(
     (patch: Record<string, string | string[] | null>, resetPage = true) => {
@@ -210,17 +235,7 @@ export default function ResultsPage() {
     // that calls `load()` - satisfies react-hooks/set-state-in-effect while
     // still surfacing a fresh error/loading state per fetch.
     Promise.all([
-      fetchArticles(id, {
-        page,
-        page_size: pageSize,
-        sort,
-        year_from: yearFrom ? Number(yearFrom) : undefined,
-        year_to: yearTo ? Number(yearTo) : undefined,
-        source: selectedSources.length > 0 ? selectedSources : undefined,
-        has_doi: hasDoi || undefined,
-        has_abstract: hasAbstract || undefined,
-        keyword: keywordParam || undefined,
-      }),
+      fetchArticles(id, { page, page_size: pageSize, sort, ...activeFilters }),
       fetchCollectionStats(id),
     ])
       .then(([articlesRes, statsRes]) => {
@@ -265,6 +280,20 @@ export default function ResultsPage() {
     setSearchParams(new URLSearchParams());
   }
 
+  async function handleExport(format: ExportFormat) {
+    setExportingFormat(format);
+    setExportError(null);
+    try {
+      await downloadExport(id, format, { sort, ...activeFilters });
+    } catch (err) {
+      setExportError(
+        err instanceof Error ? err.message : `Could not export as ${format.toUpperCase()}.`
+      );
+    } finally {
+      setExportingFormat(null);
+    }
+  }
+
   const filtersActive = Boolean(
     yearFrom || yearTo || selectedSources.length > 0 || hasDoi || hasAbstract || keywordParam
   );
@@ -297,16 +326,37 @@ export default function ResultsPage() {
               {stats ? ` • ${stats.total} articles found` : ""}
             </p>
           </div>
-          <button
-            type="button"
-            disabled
-            title="Excel export is planned for Sprint 6 (US-06.1) and isn't available yet"
-            className="flex items-center gap-2 rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white opacity-50 disabled:cursor-not-allowed"
-          >
-            <Download className="h-4 w-4" />
-            Export Dataset
-          </button>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-slate-500">Export:</span>
+            {EXPORT_FORMATS.map(({ format, label, icon: Icon }) => {
+              const isExporting = exportingFormat === format;
+              return (
+                <button
+                  key={format}
+                  type="button"
+                  onClick={() => handleExport(format)}
+                  disabled={exportingFormat !== null}
+                  title={`Export the current filtered results as ${label}`}
+                  className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isExporting ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Icon className="h-4 w-4" />
+                  )}
+                  {label}
+                </button>
+              );
+            })}
+          </div>
         </div>
+
+        {exportError && (
+          <div className="mt-4 flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            {exportError}
+          </div>
+        )}
 
         {error && !articles ? (
           <div className="mt-8 flex flex-col items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white py-16 text-center shadow-sm">
