@@ -32,6 +32,19 @@ class CollectionRun(Base):
             "sources": {},
         },
     )
+    stats: Mapped[dict] = mapped_column(
+        JSON,
+        nullable=False,
+        default=lambda: {
+            "total": 0,
+            "deduped": 0,
+            "duplicates": 0,
+            "doi_percentage": 0.0,
+            "abstract_percentage": 0.0,
+            "per_source_counts": [],
+            "articles_per_year": [],
+        },
+    )
     status: Mapped[str] = mapped_column(
         String(20), nullable=False, default=CollectionStatus.RUNNING
     )

@@ -9,6 +9,7 @@ route handler stays a thin adapter (Clean Architecture: api -> use_cases).
 from __future__ import annotations
 
 import logging
+from collections import Counter
 
 from sqlalchemy.orm import Session
 
@@ -67,6 +68,15 @@ def create_collection_run(
             },
             "sources": {},
         },
+        stats={
+            "total": 0,
+            "deduped": 0,
+            "duplicates": 0,
+            "doi_percentage": 0.0,
+            "abstract_percentage": 0.0,
+            "per_source_counts": [],
+            "articles_per_year": [],
+        },
     )
     db.add(run)
     db.commit()
@@ -99,7 +109,21 @@ async def run_collection_in_background(collection_id: str, payload: CollectionPa
         state.status = CollectionStatus.FAILED
         state.error = str(exc)
         state.mark_finished()
-        _persist_final_state(collection_id, state, article_count=0, duplicate_count=0)
+        _persist_final_state(
+            collection_id,
+            state,
+            article_count=0,
+            duplicate_count=0,
+            stats={
+                "total": 0,
+                "deduped": 0,
+                "duplicates": 0,
+                "doi_percentage": 0.0,
+                "abstract_percentage": 0.0,
+                "per_source_counts": [],
+                "articles_per_year": [],
+            },
+        )
         return
 
     if state.abort_requested:
@@ -119,6 +143,7 @@ async def run_collection_in_background(collection_id: str, payload: CollectionPa
         article_count=len(articles),
         duplicate_count=dedup_result.duplicate_count,
         quality_report=quality_report,
+        stats=_build_collection_stats(dedup_result.articles, dedup_result.duplicate_count),
     )
 
 
@@ -135,6 +160,33 @@ def _load_custom_factories() -> dict[str, object]:
         db.close()
 
 
+def _build_collection_stats(articles: list[object], duplicate_count: int) -> dict[str, object]:
+    total = len(articles)
+    deduped = max(total - duplicate_count, 0)
+    doi_percentage = round((sum(1 for article in articles if getattr(article, "doi", None)) / total) * 100, 2) if total else 0.0
+    abstract_percentage = round((sum(1 for article in articles if getattr(article, "abstract", None) is not None) / total) * 100, 2) if total else 0.0
+
+    source_counts: Counter[str] = Counter(getattr(article, "source", "") for article in articles)
+    year_counts: Counter[int] = Counter(
+        int(getattr(article, "year", 0))
+        for article in articles
+        if getattr(article, "year", None) is not None
+    )
+
+    return {
+        "total": total,
+        "deduped": deduped,
+        "duplicates": duplicate_count,
+        "doi_percentage": doi_percentage,
+        "abstract_percentage": abstract_percentage,
+        "per_source_counts": [
+            {"source": source, "count": count}
+            for source, count in sorted(source_counts.items())
+        ],
+        "articles_per_year": [[year, count] for year, count in sorted(year_counts.items())],
+    }
+
+
 def _persist_final_state(
     collection_id: str,
     state: state_store.CollectionState,
@@ -142,6 +194,7 @@ def _persist_final_state(
     article_count: int,
     duplicate_count: int = 0,
     quality_report: dict | None = None,
+    stats: dict | None = None,
 ) -> None:
     db = SESSION_FACTORY()
     try:
@@ -159,6 +212,15 @@ def _persist_final_state(
                     "duplicate_rate": 0.0,
                 },
                 "sources": {},
+            }
+            run.stats = stats or {
+                "total": article_count,
+                "deduped": max(article_count - duplicate_count, 0),
+                "duplicates": duplicate_count,
+                "doi_percentage": 0.0,
+                "abstract_percentage": 0.0,
+                "per_source_counts": [],
+                "articles_per_year": [],
             }
             db.commit()
     finally:
