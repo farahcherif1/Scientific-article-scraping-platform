@@ -80,6 +80,10 @@ def get_articles(
                 is_duplicate=a.is_duplicate,
                 missing_fields=a.missing_fields,
                 relevance_score=a.relevance_score,
+                text_unified=" ".join(
+                    part for part in [a.title, a.abstract, a.search_keyword] if part
+                ),
+                abstract_missing=not bool(a.abstract),
             )
             for a in result.items
         ],
