@@ -28,6 +28,8 @@ ARTICLE_FIELDS: tuple[str, ...] = (
     "is_duplicate",
     "missing_fields",
     "relevance_score",
+    "text_unified",
+    "abstract_missing",
 )
 
 # Fields that are lists in the ORM/JSON shape but need flattening to a single
@@ -36,9 +38,17 @@ ARTICLE_FIELDS: tuple[str, ...] = (
 _LIST_FIELDS = {"authors", "categories", "missing_fields"}
 
 
+def _build_text_unified(article: Article) -> str:
+    parts = [article.title, article.abstract, article.search_keyword]
+    return " ".join(part for part in parts if part)
+
+
 def article_to_record(article: Article) -> dict[str, Any]:
     """The canonical article record (matches `ArticleItem`/Appendix A) as a plain dict."""
-    return {field: getattr(article, field) for field in ARTICLE_FIELDS}
+    record = {field: getattr(article, field) for field in ARTICLE_FIELDS if field not in {"text_unified", "abstract_missing"}}
+    record["text_unified"] = _build_text_unified(article)
+    record["abstract_missing"] = not bool(article.abstract)
+    return record
 
 
 def article_to_flat_row(article: Article) -> dict[str, Any]:

@@ -105,6 +105,18 @@ class TestJsonExporter:
         assert record["is_duplicate"] is False
         assert record["collection_date"] == "2026-01-01T00:00:00+00:00"
 
+    def test_ai_ready_fields_are_included_for_export(self):
+        content = export_articles_to_json([_article()])
+        record = json.loads(content)[0]
+        assert record["text_unified"] == "Deep Learning, Meet Genomics An abstract. deep learning"
+        assert record["abstract_missing"] is False
+
+    def test_missing_abstract_is_flagged_for_export(self):
+        content = export_articles_to_json([_article(abstract=None)])
+        record = json.loads(content)[0]
+        assert record["text_unified"] == "Deep Learning, Meet Genomics deep learning"
+        assert record["abstract_missing"] is True
+
     def test_missing_fields_stay_null_not_dropped(self):
         content = export_articles_to_json([_article(doi=None)])
         record = json.loads(content)[0]

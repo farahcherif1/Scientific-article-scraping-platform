@@ -27,6 +27,8 @@ class ArticleItem(BaseModel):
     is_duplicate: bool
     missing_fields: list[str]
     relevance_score: int
+    text_unified: str
+    abstract_missing: bool
 
 
 class ArticlesPagination(BaseModel):
