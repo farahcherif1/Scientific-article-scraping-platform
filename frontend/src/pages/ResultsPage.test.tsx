@@ -28,6 +28,8 @@ function makeArticle(overrides: Partial<Article> = {}): Article {
     venue: "Journal of AI",
     domain: "cs",
     categories: ["cs.AI"],
+    keywords: [],
+    keywords_auto: [],
     citation_count: 12,
     source: "arxiv",
     search_keyword: "deep learning",
