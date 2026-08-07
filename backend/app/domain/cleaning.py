@@ -200,6 +200,7 @@ def normalize_article(raw: RawArticle) -> ArticleClean:
         "venue": _normalize_optional_text(raw.venue),
         "domain": _normalize_optional_text(raw.domain),
     }
+    keywords = clean_keywords(raw.keywords)
 
     missing_fields = [name for name in _TRACKED_FIELDS if not fields[name]]
 
@@ -207,6 +208,8 @@ def normalize_article(raw: RawArticle) -> ArticleClean:
         **fields,
         categories=list(raw.categories),
         citation_count=raw.citation_count,
+        keywords=keywords,
+        keywords_auto=[],
         source=raw.source,
         search_keyword=raw.search_keyword,
         collection_date=raw.collection_date,

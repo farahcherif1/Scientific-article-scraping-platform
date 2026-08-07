@@ -24,6 +24,7 @@ from app.db.models import Article, CollectionRun
 from app.db.session import SessionLocal
 from app.domain.cleaning import normalize_articles
 from app.domain.deduplication import deduplicate_articles
+from app.domain.enrichment import merge_keywords
 from app.domain.entities import ArticleClean, CollectionStatus
 from app.domain.ranking import compute_relevance_score
 from app.orchestrator import state as state_store
@@ -169,6 +170,11 @@ def _persist_articles(
                 domain=article.domain,
                 categories=article.categories,
                 citation_count=article.citation_count,
+                keywords=merge_keywords(article.keywords, article.abstract)[0],
+                keywords_auto=[
+                    keyword_phrase.phrase
+                    for keyword_phrase in merge_keywords(article.keywords, article.abstract)[1]
+                ],
                 source=article.source,
                 search_keyword=article.search_keyword,
                 collection_date=article.collection_date,
