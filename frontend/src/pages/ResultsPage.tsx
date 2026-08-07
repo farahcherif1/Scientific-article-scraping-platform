@@ -612,6 +612,23 @@ export default function ResultsPage() {
                                     <MissingBadge icon={CalendarOff} text="Missing Year" />
                                   )}
                                 </div>
+                                {(article.keywords_auto?.length ?? 0) > 0 && (
+                                  <div className="mt-2 flex flex-wrap gap-1.5">
+                                    {article.keywords_auto.slice(0, 3).map((keyword) => (
+                                      <span
+                                        key={keyword}
+                                        className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-800"
+                                      >
+                                        {keyword}
+                                      </span>
+                                    ))}
+                                    {(article.keywords_auto.length ?? 0) > 3 && (
+                                      <span className="text-[11px] text-slate-400">
+                                        +{article.keywords_auto.length - 3} more
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
                               </td>
                             </tr>
                           ))}
@@ -757,6 +774,23 @@ export default function ResultsPage() {
                 <dt className="font-medium text-slate-500">Categories</dt>
                 <dd className="mt-1 text-slate-800">
                   {selected.categories.length > 0 ? selected.categories.join(", ") : "—"}
+                </dd>
+              </div>
+              <div>
+                <dt className="font-medium text-slate-500">Keywords</dt>
+                <dd className="mt-2 flex flex-wrap gap-2">
+                  {(selected.keywords_auto?.length ?? 0) > 0 ? (
+                    selected.keywords_auto.map((keyword) => (
+                      <span
+                        key={keyword}
+                        className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-800"
+                      >
+                        {keyword}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-slate-500">No generated keywords yet</span>
+                  )}
                 </dd>
               </div>
               <div className="grid grid-cols-2 gap-4">

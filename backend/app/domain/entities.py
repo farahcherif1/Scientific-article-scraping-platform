@@ -27,6 +27,7 @@ class RawArticle(BaseModel):
     authors: list[str] = Field(default_factory=list)
     year: int | None = None
     abstract: str | None = None
+    keywords: list[str] = Field(default_factory=list)
     url: str | None = None
     doi: str | None = None
     venue: str | None = None
@@ -65,6 +66,8 @@ class ArticleClean(BaseModel):
     domain: str | None = None
     categories: list[str] = Field(default_factory=list)
     citation_count: int | None = None
+    keywords: list[str] = Field(default_factory=list)
+    keywords_auto: list[str] = Field(default_factory=list)
 
     source: str
     search_keyword: str

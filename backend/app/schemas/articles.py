@@ -20,6 +20,8 @@ class ArticleItem(BaseModel):
     domain: str | None
     categories: list[str]
     citation_count: int | None
+    keywords: list[str]
+    keywords_auto: list[str]
     source: str
     search_keyword: str
     collection_date: datetime

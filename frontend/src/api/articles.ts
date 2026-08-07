@@ -20,6 +20,8 @@ export interface Article {
   domain: string | null;
   categories: string[];
   citation_count: number | null;
+  keywords: string[];
+  keywords_auto: string[];
   source: string;
   search_keyword: string;
   collection_date: string;

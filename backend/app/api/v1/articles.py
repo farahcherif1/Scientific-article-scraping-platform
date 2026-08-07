@@ -73,6 +73,8 @@ def get_articles(
                 domain=a.domain,
                 categories=a.categories,
                 citation_count=a.citation_count,
+                keywords=a.keywords,
+                keywords_auto=a.keywords_auto,
                 source=a.source,
                 search_keyword=a.search_keyword,
                 collection_date=a.collection_date,

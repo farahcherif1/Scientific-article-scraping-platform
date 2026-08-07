@@ -69,6 +69,8 @@ class Article(Base):
     domain: Mapped[str | None] = mapped_column(String(255), nullable=True)
     categories: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
     citation_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    keywords: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    keywords_auto: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
 
     source: Mapped[str] = mapped_column(String(100), nullable=False)
     search_keyword: Mapped[str] = mapped_column(String(200), nullable=False)
