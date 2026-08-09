@@ -79,3 +79,37 @@ def test_explicit_false_overrides_apply():
         json=_valid_payload(include_missing_abstract=False, exclude_duplicates_on_export=False),
     )
     assert response.status_code == 200
+
+
+def test_too_many_keywords_rejected():
+    # Security review finding: `keywords` had no upper bound at all, so a
+    # request could queue an arbitrarily long sequential fan-out per source.
+    response = client.post(
+        "/api/v1/collections/params/validate",
+        json=_valid_payload(keywords=[f"kw{i}" for i in range(51)]),
+    )
+    assert response.status_code == 422
+
+
+def test_exactly_the_keyword_cap_is_accepted():
+    response = client.post(
+        "/api/v1/collections/params/validate",
+        json=_valid_payload(keywords=[f"kw{i}" for i in range(50)]),
+    )
+    assert response.status_code == 200
+
+
+def test_an_overly_long_single_keyword_is_rejected():
+    response = client.post(
+        "/api/v1/collections/params/validate",
+        json=_valid_payload(keywords=["a" * 201]),
+    )
+    assert response.status_code == 422
+
+
+def test_too_many_sources_rejected():
+    response = client.post(
+        "/api/v1/collections/params/validate",
+        json=_valid_payload(sources=[f"src{i}" for i in range(51)]),
+    )
+    assert response.status_code == 422

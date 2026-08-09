@@ -7,6 +7,16 @@ class Settings(BaseSettings):
     db_url: str = "sqlite:///./team08.db"
     polite_pool_email: str = "your-email@example.com"
 
+    # Security review finding: this was hardcoded to the Vite dev server
+    # origin in app/main.py, which is safely restrictive but meant a prod
+    # deployment (a different frontend origin) couldn't configure CORS
+    # without a code change. Comma-separated list of allowed origins.
+    cors_origins: str = "http://localhost:5173"
+
+    @property
+    def cors_origins_list(self) -> list[str]:
+        return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+
     http_timeout_connect_s: int = 10
     http_timeout_read_s: int = 30
     http_timeout_source_total_s: int = 60

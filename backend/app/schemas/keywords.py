@@ -1,8 +1,14 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+# Generous ceiling on the pasted-text box (~7500 average-length keywords) -
+# large enough that no real user hits it, small enough that a client can't
+# use this endpoint to push a multi-MB payload through the parser (security
+# review finding: DoS via unbounded input).
+_MAX_RAW_TEXT_LEN = 50_000
 
 
 class KeywordParseRequest(BaseModel):
-    raw_text: str
+    raw_text: str = Field(max_length=_MAX_RAW_TEXT_LEN)
 
 
 class KeywordParseResponse(BaseModel):

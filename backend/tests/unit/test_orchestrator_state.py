@@ -1,4 +1,6 @@
-from app.orchestrator.state import create_state
+from app.domain.entities import CollectionStatus
+from app.orchestrator import state as state_module
+from app.orchestrator.state import count_running, create_state, get_state
 
 
 def test_new_state_starts_pending_with_zero_progress():
@@ -48,3 +50,33 @@ def test_mark_finished_freezes_elapsed_seconds(monkeypatch):
 
     monkeypatch.setattr("app.orchestrator.state.time.monotonic", lambda: 999.0)
     assert state.elapsed_seconds == 5  # further real time passing must not move the frozen reading
+
+
+def test_count_running_only_counts_running_status():
+    # Relies on tests/conftest.py's autouse `_clear_orchestrator_state`
+    # fixture for a clean store at the start of this test.
+    running = create_state("COL-TEST-7", keywords=["ai"], sources=["arxiv"])
+    done = create_state("COL-TEST-8", keywords=["ai"], sources=["arxiv"])
+    done.status = CollectionStatus.COMPLETED
+
+    assert count_running() == 1
+    running.status = CollectionStatus.FAILED
+    assert count_running() == 0
+
+
+def test_store_eviction_drops_oldest_finished_entries_not_running_ones(monkeypatch):
+    monkeypatch.setattr(state_module, "MAX_STORE_SIZE", 3)
+
+    still_running = create_state("COL-EVICT-RUNNING", keywords=["ai"], sources=["arxiv"])
+    finished_first = create_state("COL-EVICT-OLD", keywords=["ai"], sources=["arxiv"])
+    finished_first.status = CollectionStatus.COMPLETED
+    create_state("COL-EVICT-MID", keywords=["ai"], sources=["arxiv"])
+
+    # The store is now at the (patched) cap of 3. Adding a 4th entry must
+    # evict the oldest *finished* one, never the still-running one.
+    create_state("COL-EVICT-NEW", keywords=["ai"], sources=["arxiv"])
+
+    assert get_state("COL-EVICT-OLD") is None
+    assert get_state(still_running.id) is not None
+    assert get_state("COL-EVICT-MID") is not None
+    assert get_state("COL-EVICT-NEW") is not None

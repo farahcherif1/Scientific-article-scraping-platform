@@ -61,9 +61,50 @@ If a live check ever fails where the mocked tests pass, that's a signal the prov
 |---|---|
 | **Status** | ✅ Implemented (US-03.2, owned by Ilyes) |
 | **File** | `backend/app/connectors/openalex.py` |
-| **Rate limit** | Via `OPENALEX_RATE_LIMITER` (shared infra) |
+| **API docs** | https://docs.openalex.org/ |
+| **Endpoint** | `https://api.openalex.org/works` (JSON) |
+| **Auth** | None required — polite pool via `mailto=` query param (sent on every request) + `User-Agent` header, per Appendix B rule 7 |
+| **Rate limit** | 10 req/s (`RATE_LIMIT_OPENALEX_RPS`), via `OPENALEX_RATE_LIMITER` (shared infra) |
+| **Domain coverage** | Cross-discipline global index of scientific works |
 
-*(Details to be filled in by connector owner — see US-03.2.)*
+**Field mapping (per US-03.2's acceptance criteria):**
+- `cited_by_count` → `citation_count`.
+- `concepts[0].display_name` → `domain` (first/top concept only).
+- `title` → `title`, falling back to `display_name` if `title` is absent.
+- `doi` → normalized: strips the `https://doi.org/` prefix, lowercased.
+- `authorships[].author.display_name` → `authors` (entries with no
+  `display_name` are skipped rather than producing a blank author).
+- `abstract_inverted_index` → `abstract`: OpenAlex doesn't return plain-text
+  abstracts, only an inverted index (`{word: [positions]}`) for copyright
+  reasons — `_reconstruct_abstract()` rebuilds the original word order from
+  it.
+- `id` (OpenAlex's own work URL, e.g. `https://openalex.org/W123...`) →
+  `url`.
+
+**Pagination:** cursor-based (`cursor=*` then `meta.next_cursor` from each
+response), page size 25 per request (`DEFAULT_PAGE_SIZE`; OpenAlex's own
+per-page cap is 200). Stops as soon as `max_results` is reached — never
+requests a full page just to discard the extra — and stops cleanly if a
+page comes back empty or without a `next_cursor`.
+
+**Resilience:** every request goes through `call_with_retry` (5xx/429
+retried with exponential backoff, max 2 retries — see the shared
+infrastructure table above) and is cached in-memory per `(keyword,
+max_results, year_from, year_to)` for `CACHE_TTL_HOURS`.
+
+**Known quirks:**
+- `primary_location` can be a **present-but-`null`** key (not just an
+  absent one) when OpenAlex hasn't identified a venue for a work — seen
+  live, not just in docs. The naive chained-`.get()` approach crashes on
+  this shape; `_map_to_raw_article` checks for `None` explicitly before
+  reading `primary_location["source"]["display_name"]`. Regression test:
+  `test_openalex.py`.
+- Year filtering uses OpenAlex's `filter=from_publication_date:...,to_publication_date:...`
+  syntax (full ISO dates, `YYYY-01-01`/`YYYY-12-31`), not a simple
+  `year=` param.
+- Live-verified against the real API as part of an end-to-end orchestrator
+  run (2 keywords × 2 sources including OpenAlex, 20 articles, ~4s — see
+  `docs/limitations.md`'s US-03.4 entry).
 
 ---
 
