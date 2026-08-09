@@ -3,9 +3,11 @@ import io
 import json
 from datetime import UTC, datetime
 
+import pytest
 from openpyxl import load_workbook
 
 from app.db.models import Article, CollectionRun
+from app.exporters.common import sanitize_cell
 from app.exporters.csv_exporter import export_articles_to_csv
 from app.exporters.json_exporter import export_articles_to_json
 from app.exporters.xlsx_exporter import export_dataset_to_xlsx
@@ -87,6 +89,31 @@ class TestCsvExporter:
         rows = list(csv.DictReader(io.StringIO(content.decode("utf-8-sig"))))
         assert rows == []
 
+    def test_formula_injection_payload_in_title_is_neutralized(self):
+        # Security review finding (CWE-1236): a title like this - plausible
+        # from a malicious/compromised paper record via any connector,
+        # built-in or custom - must never reach Excel/Sheets as a live
+        # formula when the exported CSV is opened.
+        content = export_articles_to_csv([_article(title="=cmd|'/c calc'!A0")])
+        rows = list(csv.DictReader(io.StringIO(content.decode("utf-8-sig"))))
+        assert rows[0]["title"] == "'=cmd|'/c calc'!A0"
+
+    @pytest.mark.parametrize("trigger", ["=", "+", "-", "@", "\t", "\r"])
+    def test_each_formula_trigger_character_is_escaped(self, trigger):
+        content = export_articles_to_csv([_article(venue=f"{trigger}HYPERLINK(evil)")])
+        rows = list(csv.DictReader(io.StringIO(content.decode("utf-8-sig"))))
+        assert rows[0]["venue"].startswith("'")
+
+    def test_ordinary_title_starting_with_a_hyphenated_word_is_untouched(self):
+        # A real title beginning with a hyphen (e.g. "-omics") is still data,
+        # not an attack - the mitigation accepts the (standard, documented)
+        # tradeoff of prefixing it with a quote rather than trying to
+        # distinguish intent, same as every other implementation of this
+        # OWASP-recommended guard.
+        content = export_articles_to_csv([_article(title="-omics in the clinic")])
+        rows = list(csv.DictReader(io.StringIO(content.decode("utf-8-sig"))))
+        assert rows[0]["title"] == "'-omics in the clinic"
+
 
 class TestJsonExporter:
     def test_parses_to_a_list_of_records(self):
@@ -122,6 +149,14 @@ class TestJsonExporter:
         record = json.loads(content)[0]
         assert "doi" in record
         assert record["doi"] is None
+
+    def test_json_export_is_not_formula_escaped(self):
+        # JSON isn't opened by spreadsheet software, so `sanitize_cell`
+        # deliberately doesn't run here - escaping would corrupt the data
+        # for the CSV/XLSX-specific problem this guards against.
+        content = export_articles_to_json([_article(title="=cmd|'/c calc'!A0")])
+        record = json.loads(content)[0]
+        assert record["title"] == "=cmd|'/c calc'!A0"
 
 
 class TestXlsxExporter:
@@ -166,7 +201,49 @@ class TestXlsxExporter:
         values = {row[0].value: row[1].value for row in ws.iter_rows(min_row=2)}
         assert values["collection_id"] == "COL-0001"
         assert values["filter_source"] == "arxiv"
+        # A fixed enum value starting with "-" (not user input) must reach
+        # the sheet untouched - the formula-injection guard below only
+        # applies to the free-text fields (security review finding).
         assert values["sort"] == "-relevance"
+
+    def test_articles_sheet_escapes_formula_injection_payloads(self):
+        content = export_dataset_to_xlsx(_dataset([_article(title="=cmd|'/c calc'!A0")]))
+        ws = load_workbook(io.BytesIO(content))["articles"]
+        title_cell = next(row[1].value for row in ws.iter_rows(min_row=2))
+        assert title_cell == "'=cmd|'/c calc'!A0"
+
+    def test_params_sheet_escapes_a_formula_injection_payload_in_keywords(self):
+        run = CollectionRun(
+            id=1, keywords=["=cmd|'/c calc'!A0"], sources=["arxiv"], status="completed"
+        )
+        run.created_at = datetime(2026, 1, 1, tzinfo=UTC)
+        dataset = ExportDataset(
+            run=run,
+            sort="-relevance",
+            filters=ArticleFilters(),
+            articles=[],
+            deduped=[],
+            duplicates=[],
+            stats=compute_stats([]),
+        )
+        content = export_dataset_to_xlsx(dataset)
+        ws = load_workbook(io.BytesIO(content))["params"]
+        values = {row[0].value: row[1].value for row in ws.iter_rows(min_row=2)}
+        assert values["keywords"] == "'=cmd|'/c calc'!A0"
+
+
+class TestSanitizeCell:
+    @pytest.mark.parametrize("trigger", ["=", "+", "-", "@", "\t", "\r"])
+    def test_leading_trigger_character_gets_quote_prefixed(self, trigger):
+        assert sanitize_cell(f"{trigger}whatever") == f"'{trigger}whatever"
+
+    def test_non_trigger_string_is_untouched(self):
+        assert sanitize_cell("Deep Learning") == "Deep Learning"
+
+    def test_non_string_values_pass_through_untouched(self):
+        assert sanitize_cell(2021) == 2021
+        assert sanitize_cell(None) is None
+        assert sanitize_cell(True) is True
 
 
 def test_export_params_record_matches_run_and_filters():

@@ -11,7 +11,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Font
 from openpyxl.worksheet.worksheet import Worksheet
 
-from app.exporters.common import ARTICLE_FIELDS, article_to_flat_row
+from app.exporters.common import ARTICLE_FIELDS, article_to_flat_row, sanitize_cell
 from app.use_cases.export_dataset import ExportDataset, export_params_record
 
 _HEADER_FONT = Font(bold=True)
@@ -65,10 +65,23 @@ def _write_stats_sheet(ws: Worksheet, dataset: ExportDataset) -> None:
         ws.append([year, count])
 
 
+_FREE_TEXT_PARAM_FIELDS = {"keywords", "filter_keyword"}
+"""
+The only `export_params_record` fields that echo genuinely free-text user
+input (a run's own keyword list, and the Results-page keyword-substring
+filter) rather than a server-generated id, a fixed enum member (`sort`,
+`status`), or a count/date - so these are the only ones that need the
+formula-injection guard (`sanitize_cell` would otherwise mangle a legitimate
+value like `sort="-relevance"`, which starts with `-` but isn't user input).
+"""
+
+
 def _write_params_sheet(ws: Worksheet, dataset: ExportDataset) -> None:
     record = export_params_record(dataset)
     _write_header(ws, ["Field", "Value"])
     for field, value in record.items():
+        if field in _FREE_TEXT_PARAM_FIELDS:
+            value = sanitize_cell(value)
         ws.append([field, value])
 
 

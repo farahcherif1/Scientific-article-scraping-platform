@@ -38,6 +38,20 @@ def start_collection(
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ) -> StartCollectionResponse:
+    # Security review finding: this endpoint has no auth and no other
+    # throttle, so nothing previously stopped a client from starting
+    # unboundedly many concurrent collections - each its own keyword x source
+    # fan-out against real third-party APIs (resource exhaustion here, and a
+    # compliance-charter rate-limit risk there). 429 is the standard "you're
+    # sending requests too fast, retry later" response for this.
+    if state_store.count_running() >= state_store.MAX_CONCURRENT_RUNNING:
+        raise HTTPException(
+            status_code=429,
+            detail=(
+                f"Too many collections are already running "
+                f"(max {state_store.MAX_CONCURRENT_RUNNING} concurrent). Try again shortly."
+            ),
+        )
     collection_id, state = create_collection_run(db, payload)
     background_tasks.add_task(run_collection_in_background, collection_id, payload)
     return StartCollectionResponse(id=collection_id, status=state.status)

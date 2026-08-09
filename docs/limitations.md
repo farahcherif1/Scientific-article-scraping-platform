@@ -269,3 +269,23 @@
   - No row/cell limit on the `.xlsx` writer; a very large corpus is written
     fully in-memory (`openpyxl.Workbook`) before being returned, same
     single-process MVP tradeoff already accepted elsewhere in this file.
+- **Sprint 6 security review + functional test book (US-08.1/08.2-adjacent).**
+  A full-codebase security pass (not scoped to one feature this time) found
+  and fixed six issues — CSV/XLSX formula injection, unbounded keyword
+  input, a custom-connector rate limiter not shared across concurrent runs,
+  no cap on concurrent collections (+ unbounded in-memory progress-state
+  growth), a hardcoded CORS origin, and four vulnerable frontend
+  dependencies — see `docs/security-review.md` for full detail, including
+  what was reviewed and already found safe (SSRF/API-key handling from the
+  prior review, `javascript:` URI injection, SQL injection, secrets
+  handling) and what's deferred (DNS-rebinding TOCTOU on the custom-connector
+  host guard, `str(exc)` reaching `GET /collections/{id}/progress`). Ten
+  Must-Have paths were also executed end-to-end against a live running
+  stack (`docs/testing/functional-test-book.md`) — 10/10 pass; one
+  mid-session investigation (a browser tab hang under a specific synthetic
+  keyword pattern) was reproduced, root-caused to the browser's own
+  spellchecker via a decisive counter-test, and resolved as not a product
+  defect. **Still no login/user-account system anywhere in the stack** —
+  every `/api/v1/*` endpoint remains unauthenticated by design (single-user
+  internal tool); this pass hardened what's reachable given that, it did
+  not add access control.

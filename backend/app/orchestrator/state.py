@@ -63,8 +63,21 @@ class CollectionState:
 
 _STORE: dict[str, CollectionState] = {}
 
+# Security review finding: this dict previously grew forever - one entry per
+# collection ever started, for the life of the process, with no eviction.
+# Combined with no cap on how many collections could be started concurrently,
+# a client could exhaust server memory just by repeatedly POSTing
+# /collections (no auth guards that endpoint - see docs/limitations.md).
+# `MAX_STORE_SIZE` bounds steady-state memory; `MAX_CONCURRENT_RUNNING`
+# (enforced by the caller via `count_running()`) bounds how fast new entries
+# can even be added, and doubles as a throttle on how hard this backend can
+# hammer third-party APIs at once (compliance charter rule 7).
+MAX_STORE_SIZE = 500
+MAX_CONCURRENT_RUNNING = 10
+
 
 def create_state(id: str, *, keywords: list[str], sources: list[str]) -> CollectionState:
+    _evict_oldest_finished_if_over_capacity()
     state = CollectionState(id=id, keywords=keywords, sources=sources)
     _STORE[id] = state
     return state
@@ -72,6 +85,27 @@ def create_state(id: str, *, keywords: list[str], sources: list[str]) -> Collect
 
 def get_state(id: str) -> CollectionState | None:
     return _STORE.get(id)
+
+
+def count_running() -> int:
+    return sum(1 for state in _STORE.values() if state.status == CollectionStatus.RUNNING)
+
+
+def _evict_oldest_finished_if_over_capacity() -> None:
+    """
+    Drops the oldest *finished* entries (insertion order - dicts preserve it)
+    once the store is full, never a still-running one. If every entry is
+    somehow still running (at `MAX_CONCURRENT_RUNNING` that can't happen in
+    practice), the store is simply allowed to exceed `MAX_STORE_SIZE` rather
+    than dropping in-progress state.
+    """
+    if len(_STORE) < MAX_STORE_SIZE:
+        return
+    for existing_id, state in list(_STORE.items()):
+        if len(_STORE) < MAX_STORE_SIZE:
+            break
+        if state.status != CollectionStatus.RUNNING:
+            del _STORE[existing_id]
 
 
 def clear_all() -> None:

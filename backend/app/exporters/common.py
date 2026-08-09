@@ -9,6 +9,26 @@ from typing import Any
 
 from app.db.models import Article
 
+# CSV/Excel formula injection (CWE-1236, security review finding): every
+# string cell in a CSV/XLSX export can originate from an external, untrusted
+# source - article metadata pulled from a connector (a paper's title/authors/
+# venue) or a fully researcher-supplied custom connector, plus the run's own
+# keyword list. If a cell's text starts with one of these characters, Excel/
+# Sheets/LibreOffice interprets it as a formula rather than a label when the
+# file is opened - `=cmd|'/c calc'!A1` and DDE-based variants being the
+# classic payloads. Prefixing with a single quote forces spreadsheet software
+# to treat the cell as literal text (the standard OWASP-recommended
+# mitigation); it never runs through this path for the JSON export, which
+# isn't opened by spreadsheet software.
+_FORMULA_TRIGGER_CHARS = ("=", "+", "-", "@", "\t", "\r")
+
+
+def sanitize_cell(value: Any) -> Any:
+    """Neutralizes a leading formula-trigger character on a string cell value."""
+    if isinstance(value, str) and value.startswith(_FORMULA_TRIGGER_CHARS):
+        return "'" + value
+    return value
+
 ARTICLE_FIELDS: tuple[str, ...] = (
     "id",
     "title",
@@ -58,4 +78,4 @@ def article_to_flat_row(article: Article) -> dict[str, Any]:
         record[field] = "; ".join(record[field])
     if record["collection_date"] is not None:
         record["collection_date"] = record["collection_date"].isoformat()
-    return record
+    return {key: sanitize_cell(value) for key, value in record.items()}

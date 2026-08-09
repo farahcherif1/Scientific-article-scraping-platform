@@ -226,3 +226,14 @@ def test_pubmed_and_semantic_scholar_are_accepted_by_the_schema():
         json=_payload(sources=["pubmed", "semantic_scholar"]),
     )
     assert response.status_code == 202
+
+
+def test_start_collection_returns_429_once_the_concurrency_cap_is_reached():
+    # Security review finding: nothing previously stopped an unauthenticated
+    # client from starting unboundedly many concurrent collections, each its
+    # own keyword x source fan-out against real third-party APIs.
+    for i in range(state_store.MAX_CONCURRENT_RUNNING):
+        state_store.create_state(f"COL-CAPTEST-{i}", keywords=["x"], sources=["arxiv"])
+
+    response = client.post("/api/v1/collections", json=_payload())
+    assert response.status_code == 429

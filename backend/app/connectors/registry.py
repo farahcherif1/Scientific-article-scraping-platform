@@ -14,8 +14,30 @@ from sqlalchemy.orm import Session
 from app.connectors.generic import GenericConnector
 from app.connectors.generic_config import CustomConnectorConfig
 from app.db.models import CustomConnector
+from app.orchestrator.rate_limiter import AsyncRateLimiter
 
 ConnectorFactory = Callable[[], object]
+
+# Security/compliance review finding: each factory call used to build its own
+# `GenericConnector`, and `GenericConnector.__init__` defaults to a brand new
+# `AsyncRateLimiter` when none is passed in - so two collections running
+# concurrently against the same custom source (e.g. one started while another
+# is still in progress) each got their own limiter and could double the
+# configured `rate_limit_rps` against that source, the same class of bug the
+# built-in connectors avoid via their module-level `OPENALEX_RATE_LIMITER` etc.
+# singletons (app/orchestrator/rate_limiter.py). Keyed by slug + configured
+# rate so an edited `rate_limit_rps` takes effect on the next collection
+# rather than being stuck behind a stale limiter from before the edit.
+_RATE_LIMITERS: dict[tuple[str, float], AsyncRateLimiter] = {}
+
+
+def _shared_rate_limiter(slug: str, rate_limit_rps: float) -> AsyncRateLimiter:
+    key = (slug, rate_limit_rps)
+    limiter = _RATE_LIMITERS.get(key)
+    if limiter is None:
+        limiter = AsyncRateLimiter(1 / rate_limit_rps)
+        _RATE_LIMITERS[key] = limiter
+    return limiter
 
 
 def load_custom_connector_factories(db: Session) -> dict[str, ConnectorFactory]:
@@ -31,4 +53,8 @@ def load_custom_connector_factories(db: Session) -> dict[str, ConnectorFactory]:
 
 def _make_factory(slug: str, raw_config: dict) -> ConnectorFactory:
     config = CustomConnectorConfig.model_validate(raw_config)
-    return lambda: GenericConnector(slug=slug, config=config)
+    return lambda: GenericConnector(
+        slug=slug,
+        config=config,
+        rate_limiter=_shared_rate_limiter(slug, config.rate_limit_rps),
+    )

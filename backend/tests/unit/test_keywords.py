@@ -27,6 +27,13 @@ def test_parse_endpoint():
     assert body["count"] == 2
 
 
+def test_oversized_raw_text_is_rejected():
+    # Security review finding: `raw_text` had no length bound, so a client
+    # could push an arbitrarily large payload through the regex-split parser.
+    response = client.post("/api/v1/keywords/parse", json={"raw_text": "a" * 50_001})
+    assert response.status_code == 422
+
+
 def _build_test_xlsx() -> bytes:
     wb = openpyxl.Workbook()
     ws = wb.active
