@@ -120,7 +120,40 @@ export async function fetchCollectionStats(collectionId: string): Promise<Collec
   return res.json();
 }
 
-export type ExportFormat = "xlsx" | "csv" | "json";
+export interface KnowledgeGraphNode {
+  id: string;
+  type: "article" | "author" | "keyword" | "year";
+  label: string;
+  year?: number | null;
+  citation_count?: number | null;
+}
+
+export interface KnowledgeGraphLink {
+  id: string;
+  source: string;
+  target: string;
+  type: "AUTHORED_BY" | "HAS_KEYWORD" | "PUBLISHED_IN";
+}
+
+export interface KnowledgeGraph {
+  format: "knowledge-graph";
+  version: string;
+  collection_id: string;
+  generated_at: string;
+  nodes: KnowledgeGraphNode[];
+  links: KnowledgeGraphLink[];
+}
+
+/** Fetches the data displayed by the in-app interactive graph. */
+export async function fetchKnowledgeGraph(collectionId: string): Promise<KnowledgeGraph> {
+  const res = await fetch(`${API_BASE}/api/v1/collections/${collectionId}/export?format=graph`);
+  if (!res.ok) {
+    throw new Error(await parseErrorDetail(res, "Could not load the knowledge graph."));
+  }
+  return res.json();
+}
+
+export type ExportFormat = "xlsx" | "csv" | "json" | "graph";
 
 export interface ExportQuery extends ArticleFilters {
   sort?: SortField;
@@ -153,7 +186,7 @@ export async function downloadExport(
   const blob = await res.blob();
   const filename = filenameFromContentDisposition(
     res.headers.get("content-disposition"),
-    `${collectionId}_export.${format}`
+    `${collectionId}_${format === "graph" ? "knowledge_graph.json" : `export.${format}`}`
   );
 
   const objectUrl = URL.createObjectURL(blob);

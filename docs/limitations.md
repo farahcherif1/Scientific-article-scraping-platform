@@ -240,7 +240,7 @@
        Covered by the redaction/preserve/replace/clear tests in
        `test_custom_connectors.py`.
 - **US-06.1 (Excel export) and US-06.2 (CSV/JSON export) are implemented.**
-  `GET /api/v1/collections/{id}/export?format=xlsx|csv|json` accepts the same
+  `GET /api/v1/collections/{id}/export?format=xlsx|csv|json|graph` accepts the same
   `sort`/`year_from`/`year_to`/`source`/`has_doi`/`has_abstract`/`keyword`
   query params as `GET .../articles`, so whatever the Results page's filter
   sidebar currently has active is exactly what gets exported - there is no

@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.db.models import CollectionRun
 from app.db.session import get_db
 from app.exporters.csv_exporter import export_articles_to_csv
+from app.exporters.graph_exporter import export_articles_to_graph_json
 from app.exporters.json_exporter import export_articles_to_json
 from app.exporters.xlsx_exporter import export_dataset_to_xlsx
 from app.schemas.articles import SortField
@@ -18,6 +19,7 @@ _MEDIA_TYPES = {
     "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     "csv": "text/csv; charset=utf-8",
     "json": "application/json",
+    "graph": "application/json",
 }
 
 
@@ -35,7 +37,7 @@ def _get_run_or_404(db: Session, collection_id: str) -> CollectionRun:
 @router.get("/export")
 def export_collection(
     collection_id: str,
-    format: Literal["xlsx", "csv", "json"] = Query(...),
+    format: Literal["xlsx", "csv", "json", "graph"] = Query(...),
     sort: SortField = "-relevance",
     year_from: int | None = Query(default=None, ge=1900),
     year_to: int | None = Query(default=None, ge=1900),
@@ -66,11 +68,17 @@ def export_collection(
     )
     dataset = build_export_dataset(db, run, sort=sort, filters=filters)
 
-    filename = f"{run.public_id}_export.{format}"
+    filename = (
+        f"{run.public_id}_knowledge_graph.json"
+        if format == "graph"
+        else f"{run.public_id}_export.{format}"
+    )
     if format == "xlsx":
         content: bytes | str = export_dataset_to_xlsx(dataset)
     elif format == "csv":
         content = export_articles_to_csv(dataset.articles)
+    elif format == "graph":
+        content = export_articles_to_graph_json(dataset.articles, run.public_id)
     else:
         content = export_articles_to_json(dataset.articles)
 
