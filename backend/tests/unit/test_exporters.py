@@ -9,6 +9,7 @@ from openpyxl import load_workbook
 from app.db.models import Article, CollectionRun
 from app.exporters.common import sanitize_cell
 from app.exporters.csv_exporter import export_articles_to_csv
+from app.exporters.graph_exporter import export_articles_to_graph_json
 from app.exporters.json_exporter import export_articles_to_json
 from app.exporters.xlsx_exporter import export_dataset_to_xlsx
 from app.use_cases.export_dataset import ExportDataset, export_params_record
@@ -29,6 +30,8 @@ def _article(**overrides) -> Article:
         "domain": "cs",
         "categories": ["cs.AI", "cs.LG"],
         "citation_count": 5,
+        "keywords": ["deep learning"],
+        "keywords_auto": [],
         "source": "arxiv",
         "search_keyword": "deep learning",
         "collection_date": datetime(2026, 1, 1, tzinfo=UTC),
@@ -157,6 +160,28 @@ class TestJsonExporter:
         content = export_articles_to_json([_article(title="=cmd|'/c calc'!A0")])
         record = json.loads(content)[0]
         assert record["title"] == "=cmd|'/c calc'!A0"
+
+
+class TestGraphJsonExporter:
+    def test_creates_article_author_keyword_and_year_nodes_with_links(self):
+        content = export_articles_to_graph_json([_article()], "COL-0001")
+        graph = json.loads(content)
+
+        assert graph["format"] == "knowledge-graph"
+        assert graph["collection_id"] == "COL-0001"
+        assert {node["type"] for node in graph["nodes"]} == {"article", "author", "keyword", "year"}
+        assert {link["type"] for link in graph["links"]} == {"AUTHORED_BY", "HAS_KEYWORD", "PUBLISHED_IN"}
+
+    def test_reuses_shared_entities_and_ignores_missing_year(self):
+        first = _article(id=1, authors=["Ada Lovelace"], keywords=["AI"], year=2021)
+        second = _article(
+            id=2, authors=["ada lovelace"], keywords=[], keywords_auto=["ai"], year=None
+        )
+        graph = json.loads(export_articles_to_graph_json([first, second], "COL-0001"))
+
+        assert len([node for node in graph["nodes"] if node["type"] == "author"]) == 1
+        assert len([node for node in graph["nodes"] if node["type"] == "keyword"]) == 1
+        assert len([node for node in graph["nodes"] if node["type"] == "year"]) == 1
 
 
 class TestXlsxExporter:

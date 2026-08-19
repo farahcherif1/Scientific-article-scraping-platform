@@ -188,3 +188,23 @@ class TestJsonExport:
         records = json.loads(response.content)
         assert len(records) == 1
         assert records[0]["title"] == "OpenAlex Paper"
+
+
+class TestGraphExport:
+    def test_returns_graph_json_with_entities_and_links(self):
+        run_id = _seed_run()
+        response = client.get(f"/api/v1/collections/{run_id}/export?format=graph")
+        graph = json.loads(response.content)
+
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/json")
+        assert f"{run_id}_knowledge_graph.json" in response.headers["content-disposition"]
+        assert {node["type"] for node in graph["nodes"]} >= {"article", "author", "year"}
+        assert {link["type"] for link in graph["links"]} >= {"AUTHORED_BY", "PUBLISHED_IN"}
+
+    def test_active_filters_are_reflected(self):
+        run_id = _seed_run()
+        response = client.get(f"/api/v1/collections/{run_id}/export?format=graph&source=openalex")
+        graph = json.loads(response.content)
+
+        assert [node["label"] for node in graph["nodes"] if node["type"] == "article"] == ["OpenAlex Paper"]

@@ -4,20 +4,21 @@ import { useNavigate, useLocation } from "react-router-dom";
 interface StepDef {
   label: string;
   icon: typeof Type;
-  path: string | null; // null = not built yet
+  path: string | null; // null = display-only step, not directly navigable
+  isCurrent: (pathname: string) => boolean;
 }
 
 const steps: StepDef[] = [
-  { label: "1. Keywords", icon: Type, path: "/keywords" },
-  { label: "2. Configure", icon: Settings, path: "/collections/new" },
-  { label: "3. Collect", icon: Activity, path: null },
-  { label: "4. Results", icon: Grid, path: null },
+  { label: "1. Keywords", icon: Type, path: "/keywords", isCurrent: (path) => path === "/keywords" },
+  { label: "2. Configure", icon: Settings, path: null, isCurrent: (path) => path === "/collections/new" },
+  { label: "3. Collect", icon: Activity, path: null, isCurrent: (path) => path.endsWith("/progress") },
+  {
+    label: "4. Results",
+    icon: Grid,
+    path: null,
+    isCurrent: (path) => /^\/collections\/COL-\d+(?:\/graph)?$/.test(path),
+  },
 ];
-
-function isActive(pathname: string, path: string | null): boolean {
-  if (!path) return false;
-  return pathname === path || pathname.startsWith(`${path}/`);
-}
 
 export default function TopNav() {
   const navigate = useNavigate();
@@ -40,7 +41,7 @@ export default function TopNav() {
 
         <nav className="flex items-center gap-2">
           {steps.map((step, i) => {
-            const active = isActive(location.pathname, step.path);
+            const active = step.isCurrent(location.pathname);
             const clickable = Boolean(step.path);
             return (
               <div key={step.label} className="flex items-center gap-2">

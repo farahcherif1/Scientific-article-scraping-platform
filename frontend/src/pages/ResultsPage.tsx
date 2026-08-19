@@ -14,6 +14,7 @@ import {
   Info,
   Link2Off,
   Loader2,
+  Orbit,
   RefreshCw,
   RotateCcw,
   Search,
@@ -59,6 +60,7 @@ const EXPORT_FORMATS: { format: ExportFormat; label: string; icon: typeof FileSp
   { format: "xlsx", label: "XLSX", icon: FileSpreadsheet },
   { format: "csv", label: "CSV", icon: FileText },
   { format: "json", label: "JSON", icon: FileJson },
+  { format: "graph", label: "Graph JSON", icon: FileJson },
 ];
 
 function sourceLabel(source: string): string {
@@ -327,6 +329,15 @@ export default function ResultsPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => navigate(`/collections/${id}/graph`)}
+              className="flex items-center gap-2 rounded-lg border border-emerald-600 bg-white px-4 py-2.5 text-sm font-medium text-emerald-700 hover:bg-emerald-50"
+              title="Open the interactive 3D knowledge graph"
+            >
+              <Orbit className="h-4 w-4" />
+              View 3D Graph
+            </button>
             <span className="text-sm text-slate-500">Export:</span>
             {EXPORT_FORMATS.map(({ format, label, icon: Icon }) => {
               const isExporting = exportingFormat === format;

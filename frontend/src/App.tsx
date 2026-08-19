@@ -6,6 +6,7 @@ import CollectionPage from "./pages/CollectionPage";
 import ResultsPage from "./pages/ResultsPage";
 import SourcesPage from "./pages/SourcesPage";
 import CustomConnectorWizardPage from "./pages/CustomConnectorWizardPage";
+import KnowledgeGraphPage from "./pages/KnowledgeGraphPage";
 
 function App() {
   return (
@@ -16,6 +17,7 @@ function App() {
       <Route path="/history" element={<HistoryPage />} />
       <Route path="/collections/:id/progress" element={<CollectionPage />} />
       <Route path="/collections/:id" element={<ResultsPage />} />
+      <Route path="/collections/:id/graph" element={<KnowledgeGraphPage />} />
       <Route path="/sources" element={<SourcesPage />} />
       <Route path="/sources/custom/new" element={<CustomConnectorWizardPage />} />
       <Route path="/sources/custom/:slug/edit" element={<CustomConnectorWizardPage />} />
